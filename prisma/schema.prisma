@@ -1,0 +1,68 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Team {
+  id           String   @id
+  name         String
+  country      String?
+  matchesHome  Match[]  @relation("HomeTeam")
+  matchesAway  Match[]  @relation("AwayTeam")
+}
+
+model Match {
+  id           String   @id
+  dateUtc      DateTime
+  competition  String
+  season       String?
+  status       String
+  homeTeamId   String
+  awayTeamId   String
+  homeTeam     Team     @relation("HomeTeam", fields: [homeTeamId], references: [id])
+  awayTeam     Team     @relation("AwayTeam", fields: [awayTeamId], references: [id])
+  signals      Signal[]
+  odds         Odds[]
+}
+
+model Signal {
+  id          String   @id @default(cuid())
+  matchId     String
+  match       Match    @relation(fields: [matchId], references: [id])
+  market      String   // GOALS|CORNERS
+  line        Float
+  selection   String   // OVER|UNDER
+  modelProb   Float
+  impliedProb Float
+  edge        Float
+  confidence  Int
+  reason      String?
+  createdAt   DateTime @default(now())
+
+  @@index([market, line, createdAt])
+}
+
+model Odds {
+  id        String   @id @default(cuid())
+  matchId   String
+  match     Match    @relation(fields: [matchId], references: [id])
+  market    String   // GOALS|CORNERS
+  line      Float
+  selection String   // OVER|UNDER
+  price     Float
+  source    String?
+  ts        DateTime @default(now())
+
+  @@index([matchId, market, line, selection, ts])
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  createdAt DateTime @default(now())
+}
