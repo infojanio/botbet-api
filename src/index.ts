@@ -6,12 +6,18 @@ import { makeGenerateSignals } from './factories/make-generate-signals'
 import cron from 'node-cron'
 import { generateSignalsRoutes } from './http/routes/generate-signals-routes'
 
+//import { analysisRoutes } from './http/routes/analysis-routes'
+//import { reportsRoutes } from './http/routes/reports-routes'
+
 const app = Fastify({ logger: true })
 
 app.register(matchesRoutes)
 app.register(signalsRoutes)
 app.register(statsRoutes)
 app.register(generateSignalsRoutes)
+
+//app.register(analysisRoutes)
+//app.register(reportsRoutes)
 
 // Schedule job every 6 hours
 cron.schedule('0 */6 * * *', async () => {
