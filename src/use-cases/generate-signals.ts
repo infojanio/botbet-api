@@ -3,6 +3,21 @@ import { IMatchRepository } from '../repositories/interfaces/IMatchRepository'
 import { ISignalRepository } from '../repositories/interfaces/ISignalRepository'
 import { IStatsRepository } from '../repositories/interfaces/IStatsRepository'
 
+// Funções auxiliares
+function factorial(n: number): number {
+  return n <= 1 ? 1 : n * factorial(n - 1)
+}
+
+function poissonProbabilityOver(lambda: number, line: number): number {
+  let prob = 0
+  const max = Math.floor(line) // até a linha (ex: 2 para Over 2.5)
+
+  for (let k = 0; k <= max; k++) {
+    prob += (Math.pow(lambda, k) * Math.exp(-lambda)) / factorial(k)
+  }
+  return 1 - prob // chance de passar da linha
+}
+
 export class GenerateSignalsUseCase {
   constructor(
     private apiService: IExternalApiService,
@@ -11,10 +26,10 @@ export class GenerateSignalsUseCase {
     private statsRepo: IStatsRepository,
   ) {}
 
-  async execute() {
+  async execute(leagueId: number, season: number, limit: number = 5) {
     console.log('🚀 Iniciando job de geração de sinais...')
 
-    const upcoming = await this.apiService.getUpcomingMatches(5)
+    const upcoming = await this.apiService.getUpcomingMatches(leagueId, season, limit)
     console.log(`📊 API retornou ${upcoming.length} jogos.`)
 
     for (const m of upcoming) {
@@ -33,17 +48,37 @@ export class GenerateSignalsUseCase {
 
       console.log(`⚽ Jogo salvo: ${home.name} x ${away.name}`)
 
-      // Tenta buscar odds
+      // Buscar últimos jogos do time da casa e visitante
+      const homeMatches = await this.apiService.getRecentMatches(home.id, 5)
+      const awayMatches = await this.apiService.getRecentMatches(away.id, 5)
+
+      const avgGoalsHome =
+        homeMatches.reduce((a, b) => a + (b.goals?.home ?? 0) + (b.goals?.away ?? 0), 0) /
+        (homeMatches.length || 1)
+
+      const avgGoalsAway =
+        awayMatches.reduce((a, b) => a + (b.goals?.home ?? 0) + (b.goals?.away ?? 0), 0) /
+        (awayMatches.length || 1)
+
+      const avgGoals = (avgGoalsHome + avgGoalsAway) / 2
+
+      // Modelo Poisson: probabilidade Over 2.5 gols
+      const modelProbGoals = poissonProbabilityOver(avgGoals, 2.5)
+
+      // Mock para escanteios (sem endpoint de corners detalhado no plano free, podemos assumir média ~10)
+      const avgCorners = 10
+      const modelProbCorners = poissonProbabilityOver(avgCorners, 9.5)
+
+      // Buscar odds do jogo
       const oddsData = await this.apiService.getOdds(m.fixture.id)
       console.log(`   → Odds retornadas: ${oddsData.length}`)
 
       if (!oddsData.length) {
         console.warn(`⚠️ Sem odds para jogo ${match.id}`)
-        continue // salva apenas o jogo, sem sinais
+        continue
       }
 
-      // Aqui você mantém a lógica de calcular probabilidade / edge
-      // Exemplo:
+      // Processar odds e comparar com modelo
       for (const market of oddsData) {
         for (const b of market.bookmakers) {
           for (const bet of b.bets) {
@@ -54,7 +89,14 @@ export class GenerateSignalsUseCase {
               const price = parseFloat(o.odd)
               const impliedProb = 1 / price
 
-              const modelProb = Math.random() // mock, ajuste aqui
+              let modelProb = 0
+              if (bet.name === 'Match Goals' && parseFloat(o.handicap ?? '0') === 2.5) {
+                modelProb = modelProbGoals
+              }
+              if (bet.name === 'Corners' && parseFloat(o.handicap ?? '0') === 9.5) {
+                modelProb = modelProbCorners
+              }
+
               const edge = modelProb - impliedProb
 
               if (edge < 0.06) continue
@@ -68,11 +110,13 @@ export class GenerateSignalsUseCase {
                 impliedProb,
                 edge,
                 confidence: Math.floor(modelProb * 100),
-                reason: 'Mock calculation',
+                reason: 'Poisson calculation (últimos jogos)',
               })
 
               console.log(
-                `✅ Sinal criado: ${bet.name} ${o.handicap} ${selection} @${price}`,
+                `✅ Sinal criado: ${bet.name} ${o.handicap} ${selection} @${price} (Prob=${(
+                  modelProb * 100
+                ).toFixed(1)}%)`,
               )
             }
           }
