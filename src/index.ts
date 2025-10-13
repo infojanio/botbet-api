@@ -1,13 +1,11 @@
+import 'dotenv/config'
 import Fastify from 'fastify'
 import { matchesRoutes } from './http/routes/matches-routes'
 import { signalsRoutes } from './http/routes/signals-routes'
 import { statsRoutes } from './http/routes/stats-routes'
-import { makeGenerateSignals } from './factories/make-generate-signals'
-import cron from 'node-cron'
-import { generateSignalsRoutes } from './http/routes/generate-signals-routes'
 
-//import { analysisRoutes } from './http/routes/analysis-routes'
-//import { reportsRoutes } from './http/routes/reports-routes'
+import { generateSignalsRoutes } from './http/routes/generate-signals-routes'
+import { analysisRoutes } from './http/routes/analysis-routes'
 
 const app = Fastify({ logger: true })
 
@@ -16,14 +14,8 @@ app.register(signalsRoutes)
 app.register(statsRoutes)
 app.register(generateSignalsRoutes)
 
-//app.register(analysisRoutes)
+app.register(analysisRoutes)
 //app.register(reportsRoutes)
-
-// Schedule job every 6 hours
-cron.schedule('0 */6 * * *', async () => {
-  const job = makeGenerateSignals()
-  await job.execute()
-})
 
 const PORT = parseInt(process.env.PORT || '3333')
 app.listen({ port: PORT, host: '0.0.0.0' }, (err, address) => {

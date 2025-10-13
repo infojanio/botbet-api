@@ -8,16 +8,31 @@ interface AnalyzeInput {
   eventId?: string
 }
 
+type MatchData = {
+  home_score?: number
+  away_score?: number
+  goals?: { home?: number; away?: number }
+  status?: string
+  date?: string
+  home_name?: string
+  away_name?: string
+}
+
+const avg = (values: number[]) =>
+  values.length
+    ? values.reduce((a: number, b: number) => a + b, 0) / values.length
+    : 0
+
 export class AnalyzePatternsUseCase {
   constructor(
     private api = new ApiFootballService(),
     private analyzer = new PatternAnalyzerService(),
   ) {}
 
-  async execute({ home, away }: AnalyzeInput) {
-    console.log(`⚙️ Coletando dados reais de ${home} e ${away}`)
+  async execute({ home, away, leagueId }: AnalyzeInput) {
+    console.log(`🔍 Analisando padrão: ${home} x ${away}`)
 
-    // 🔹 Busca IDs dos times (busca leve usando pesquisa por nome)
+    // 1) Buscar times
     const homeSearch = await this.api.searchTeamByName(home)
     const awaySearch = await this.api.searchTeamByName(away)
 
@@ -25,69 +40,76 @@ export class AnalyzePatternsUseCase {
       throw new Error('Não foi possível encontrar os times na API.')
     }
 
-    const homeId = homeSearch.team_key || homeSearch.id
-    const awayId = awaySearch.team_key || awaySearch.id
+    const homeId = Number(homeSearch.team_id)
+    const awayId = Number(awaySearch.team_id)
 
-    // 🔹 Últimos jogos dos times
-    const homeMatches = await this.api.getRecentMatches(homeId, 5)
-    const awayMatches = await this.api.getRecentMatches(awayId, 5)
+    // liga preferida: parâmetro > liga do mandante > liga do visitante
+    const leagueToUse = leagueId ?? homeSearch.league_id ?? awaySearch.league_id
+
+    console.log(
+      `🏟️ Times encontrados: ${home}(${homeId}) vs ${away}(${awayId})`,
+    )
+    console.log(`📘 Liga: ${leagueToUse || 'desconhecida'}`)
+
+    // 2) Últimos jogos (AGORA passando opts com teamName e leagueId)
+    const homeMatches: MatchData[] = await this.api.getRecentMatches(
+      homeId,
+      5,
+      {
+        teamName: homeSearch.team_name ?? home,
+        leagueId: leagueToUse,
+      },
+    )
+
+    const awayMatches: MatchData[] = await this.api.getRecentMatches(
+      awayId,
+      5,
+      {
+        teamName: awaySearch.team_name ?? away,
+        leagueId: leagueToUse,
+      },
+    )
 
     if (!homeMatches.length || !awayMatches.length) {
-      throw new Error('Não foi possível obter partidas recentes.')
+      throw new Error('Não foi possível obter partidas recentes dos times.')
     }
 
-    // 🔹 Médias reais de gols marcados e sofridos
+    // 3) Helpers para extrair gols
+    const getGoals = (m: MatchData, side: 'home' | 'away') =>
+      side === 'home'
+        ? m.home_score ?? m.goals?.home ?? 0
+        : m.away_score ?? m.goals?.away ?? 0
 
-    // definimos um tipo base pra evitar 'any'
-    type MatchData = {
-      home_score?: number
-      away_score?: number
-      goals?: { home?: number; away?: number }
-    }
+    const getConceded = (m: MatchData, side: 'home' | 'away') =>
+      side === 'home'
+        ? m.away_score ?? m.goals?.away ?? 0
+        : m.home_score ?? m.goals?.home ?? 0
 
-    // cálculo com tipagem explícita
-    const avgGoalsForHome =
-      homeMatches.reduce(
-        (sum: number, m: MatchData) =>
-          sum + (m.home_score ?? m.goals?.home ?? 0),
-        0,
-      ) / homeMatches.length
+    // 4) Médias
+    const avgGoalsForHome = avg(homeMatches.map((m) => getGoals(m, 'home')))
+    const avgGoalsAgainstHome = avg(
+      homeMatches.map((m) => getConceded(m, 'home')),
+    )
+    const avgGoalsForAway = avg(awayMatches.map((m) => getGoals(m, 'away')))
+    const avgGoalsAgainstAway = avg(
+      awayMatches.map((m) => getConceded(m, 'away')),
+    )
 
-    const avgGoalsAgainstHome =
-      homeMatches.reduce(
-        (sum: number, m: MatchData) =>
-          sum + (m.away_score ?? m.goals?.away ?? 0),
-        0,
-      ) / homeMatches.length
-
-    const avgGoalsForAway =
-      awayMatches.reduce(
-        (sum: number, m: MatchData) =>
-          sum + (m.away_score ?? m.goals?.away ?? 0),
-        0,
-      ) / awayMatches.length
-
-    const avgGoalsAgainstAway =
-      awayMatches.reduce(
-        (sum: number, m: MatchData) =>
-          sum + (m.home_score ?? m.goals?.home ?? 0),
-        0,
-      ) / awayMatches.length
-
-    // 🔹 Ajuste de força relativa (com base na média de gols marcados)
-    const homeStrength = avgGoalsForHome / 1.4 // 1.4 = média global
+    // 5) Força relativa (média global ~1.4)
+    const homeStrength = avgGoalsForHome / 1.4
     const awayStrength = avgGoalsForAway / 1.4
 
+    // 6) Projeção ajustada por contexto (casa/fora + força)
     const { expHome, expAway } = this.analyzer.adjustByContext(
       {
-        name: home,
+        name: homeSearch.team_name ?? home,
         side: 'HOME',
         avgGoalsFor: avgGoalsForHome,
         avgGoalsAgainst: avgGoalsAgainstHome,
         strength: homeStrength,
       },
       {
-        name: away,
+        name: awaySearch.team_name ?? away,
         side: 'AWAY',
         avgGoalsFor: avgGoalsForAway,
         avgGoalsAgainst: avgGoalsAgainstAway,
@@ -95,13 +117,21 @@ export class AnalyzePatternsUseCase {
       },
     )
 
-    // 🔹 Gera o relatório
-    const report = this.analyzer.generateReport(home, away, expHome, expAway)
+    // 7) Relatório final
+    const report = this.analyzer.generateReport(
+      homeSearch.team_name ?? home,
+      awaySearch.team_name ?? away,
+      expHome,
+      expAway,
+    )
 
     return {
       ...report,
-      homeTeam: home,
-      awayTeam: away,
+      meta: {
+        homeId,
+        awayId,
+        leagueId: leagueToUse,
+      },
       homeStats: {
         avgGoalsFor: avgGoalsForHome.toFixed(2),
         avgGoalsAgainst: avgGoalsAgainstHome.toFixed(2),
@@ -110,7 +140,10 @@ export class AnalyzePatternsUseCase {
         avgGoalsFor: avgGoalsForAway.toFixed(2),
         avgGoalsAgainst: avgGoalsAgainstAway.toFixed(2),
       },
-      adjusted: { expHome: expHome.toFixed(2), expAway: expAway.toFixed(2) },
+      adjusted: {
+        expHome: expHome.toFixed(2),
+        expAway: expAway.toFixed(2),
+      },
     }
   }
 }
