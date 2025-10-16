@@ -1,4 +1,4 @@
-import { ApiFootballService } from '../services/api-football-service'
+import { ApiFootballService } from '../services/external-api/api-football-service'
 import { getFromCache, saveToCache } from '../cache/local-cache'
 
 interface FilterParams {

@@ -1,9 +1,7 @@
-import { FastifyInstance } from "fastify";
-import { MatchesController } from "../controllers/matches-controller";
-
-const controller = new MatchesController();
+import { FastifyInstance } from 'fastify'
+import { getTodayMatches } from '../controllers/matches-controller'
 
 export async function matchesRoutes(app: FastifyInstance) {
-  app.get("/matches", (req, reply) => controller.list(req, reply));
-  app.get("/matches/:id", (req, reply) => controller.details(req, reply));
+  app.get('/matches', getTodayMatches)
+ // app.get("/matches/:id", details)
 }

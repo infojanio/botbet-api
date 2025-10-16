@@ -1,4 +1,4 @@
-import { prisma } from "../../db/prisma";
+import { prisma } from "../../lib/prisma";
 import { IMatchRepository } from "../interfaces/IMatchRepository";
 
 export class PrismaMatchRepository implements IMatchRepository {

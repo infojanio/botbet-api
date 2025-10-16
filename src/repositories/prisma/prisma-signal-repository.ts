@@ -1,4 +1,4 @@
-import { prisma } from "../../db/prisma";
+import { prisma } from "../../lib/prisma";
 import { ISignalRepository } from "../interfaces/ISignalRepository";
 
 export class PrismaSignalRepository implements ISignalRepository {

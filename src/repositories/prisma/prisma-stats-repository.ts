@@ -1,4 +1,4 @@
-import { prisma } from "../../db/prisma";
+import { prisma } from "../../lib/prisma";
 import { IStatsRepository } from "../interfaces/IStatsRepository";
 
 export class PrismaStatsRepository implements IStatsRepository {

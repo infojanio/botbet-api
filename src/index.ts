@@ -10,6 +10,7 @@ import { generateLiveEarlyGoalsRoutes } from './http/routes/generate-live-early-
 import { analyzeRoutes } from './http/routes/analyze-routes'
 import { teamsRoutes } from './http/routes/teams-routes'
 import { filtersRoutes } from './http/routes/filters-routes'
+import { footballRoutes } from './http/routes/football-routes'
 
 const app = Fastify({ logger: true })
 
@@ -19,7 +20,7 @@ app.register(statsRoutes)
 app.register(generateLiveSignalsRoutes)
 app.register(generateSignalsRoutes)
 app.register(generateLiveEarlyGoalsRoutes)
-
+ app.register(footballRoutes)
 app.register(analyzeRoutes)
 app.register(teamsRoutes)
 app.register(filtersRoutes)

@@ -1,14 +1,7 @@
-import { GenerateSignalsUseCase } from '../use-cases/generate-signals'
-import { PrismaMatchRepository } from '../repositories/prisma/prisma-match-repository'
-import { PrismaSignalRepository } from '../repositories/prisma/prisma-signal-repository'
-import { PrismaStatsRepository } from '../repositories/prisma/prisma-stats-repository'
-import { ApiFootballService } from '../services/api-football-service'
+// src/use-cases/factories/make-generate-signal-use-case.ts
 
-export function makeGenerateSignals() {
-  const api = new ApiFootballService()
-  const matchRepo = new PrismaMatchRepository()
-  const signalRepo = new PrismaSignalRepository()
-  const statsRepo = new PrismaStatsRepository()
+import { GenerateSignal } from '../use-cases/generate-signals'
 
-  return new GenerateSignalsUseCase(api, matchRepo, signalRepo, statsRepo)
+export function makeGenerateSignalUseCase() {
+  return new GenerateSignal()
 }
