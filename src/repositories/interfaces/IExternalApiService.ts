@@ -1,6 +1,7 @@
 export interface IExternalApiService {
   getUpcomingMatches(leagueId: any, season: number, limit: number): Promise<any[]>
-  getRecentMatches(teamId: number, limit: number): Promise<any[]>
+  getRecentMatches(teamId: string, limit: number): Promise<any[]>
+
   getOdds(fixtureId: number): Promise<any[]>
 
   // NOVOS p/ ao vivo
@@ -8,6 +9,7 @@ export interface IExternalApiService {
   getLiveOdds(fixtureId: number): Promise<any[]>
 
     getFixturesByDate(date: string): Promise<any[]>
-  getTeamStatistics(teamId: number): Promise<any>
-  getHeadToHead(teamAId: number, teamBId: number): Promise<any>
+  getTeamStatistics(teamId: string | number): Promise<any>
+  getHeadToHead(homeId: string | number, awayId: string | number): Promise<any>
+  
 }

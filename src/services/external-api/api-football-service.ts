@@ -2,50 +2,73 @@
 import fetch from 'node-fetch'
 import { env } from '../../env'
 
-export class ApiFootballService {
+import { IExternalApiService } from '../../repositories/interfaces/IExternalApiService'
+
+export class ApiFootballService implements IExternalApiService {
+  getUpcomingMatches(leagueId: any, season: number, limit: number): Promise<any[]> {
+    throw new Error('Method not implemented.')
+  }
+  getOdds(fixtureId: number): Promise<any[]> {
+    throw new Error('Method not implemented.')
+  }
+  getLiveOdds(fixtureId: number): Promise<any[]> {
+    throw new Error('Method not implemented.')
+  }
+  getFixturesByDate(date: string): Promise<any[]> {
+    throw new Error('Method not implemented.')
+  }
+  getTeamStatistics(teamId: string ): Promise<any> {
+    throw new Error('Method not implemented.')
+  }
   private baseUrl = 'https://free-api-live-football-data.p.rapidapi.com'
   private headers = {
     'X-RapidAPI-Key': env.API_KEY,
     'X-RapidAPI-Host': env.API_HOST,
   }
 
-  // ✅ Buscar ligas populares
+  // 🏆 Ligas populares
   async getLeagues() {
     return this.getJson('/football-popular-leagues')
   }
 
-  // ✅ Buscar partidas do dia
+  // ⚽ Partidas do dia
   async getTodayMatches() {
     const today = new Date().toISOString().split('T')[0]
     return this.getJson(`/football-matches-by-date?date=${today}`)
   }
 
-  // ✅ Buscar partidas ao vivo
+  // 🔴 Partidas ao vivo
   async getLiveMatches() {
     return this.getJson('/football-current-live')
   }
 
-  // ✅ Buscar detalhes de uma partida específica
+  // 📋 Detalhes de uma partida
   async getMatchDetails(matchId: string) {
     return this.getJson(`/football-match-detail?match_id=${matchId}`)
   }
 
-  // ✅ Confrontos diretos (head-to-head)
-  async getHeadToHead(homeId: string, awayId: string) {
-    return this.getJson(`/football-head-to-head?team1_id=${homeId}&team2_id=${awayId}`)
+  // 🧩 Estatísticas de uma partida
+  async getMatchStatistics(matchId: string | number) {
+    return this.getJson(`/football-match-statistics?match_id=${matchId}`)
   }
 
-  // ✅ Últimos jogos de um time
+  // 🔙 Confrontos diretos (Head to Head)
+async getHeadToHead(homeId: string | number, awayId: string | number) {
+  return this.getJson(`/football-head-to-head?team1_id=${homeId}&team2_id=${awayId}`)
+}
+
+  // 🧠 Últimos jogos de um time
   async getRecentMatches(teamId: string, limit = 5) {
     return this.getJson(`/football-team-last-matches?team_id=${teamId}&limit=${limit}`)
   }
 
-  // ✅ Estatísticas completas de uma partida
-  async getMatchStatistics(matchId: string) {
-    return this.getJson(`/football-match-statistics?match_id=${matchId}`)
-  }
+  // 🏟️ ✅ Times de uma liga
 
-  // 🔹 Função genérica interna
+  async getTeamsByLeague(leagueId: string | number) {
+  return this.getJson(`/football-teams-by-league?league_id=${leagueId}`)
+}
+
+  // 🔹 Função genérica interna para requisições
   private async getJson(endpoint: string) {
     const res = await fetch(`${this.baseUrl}${endpoint}`, {
       method: 'GET',

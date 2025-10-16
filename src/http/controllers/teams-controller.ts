@@ -1,9 +1,10 @@
 import { FastifyRequest, FastifyReply } from 'fastify'
-import { makeApiFootballService } from '../../factories/make-api-football-service'
+import { ApiFootballService } from '../../services/external-api/api-football-service'
+
 
 export async function getLeaguesController(req: FastifyRequest, reply: FastifyReply) {
   try {
-    const api = makeApiFootballService()
+    const api = new ApiFootballService()
     const data = await api.getLeagues()
     return reply.status(200).send(data)
   } catch (err: any) {
@@ -16,7 +17,7 @@ export async function getTeamsByLeagueController(req: FastifyRequest, reply: Fas
   const { leagueId } = req.params as { leagueId: string }
 
   try {
-    const api = makeApiFootballService()
+    const api = new ApiFootballService()
     const data = await api.getTeamsByLeague(Number(leagueId))
     return reply.status(200).send(data)
   } catch (err: any) {

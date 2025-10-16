@@ -4,10 +4,10 @@ import { detectPatterns } from '../utils/pattern-detector'
 export class AnalyzeMatchUseCase {
   private api = new ApiFootballService()
 
-  async execute(homeTeamId: number, awayTeamId: number) {
+  async execute(homeTeamId: number | string, awayTeamId: number | string) {
     const [homeStats, awayStats, h2h] = await Promise.all([
-      this.api.getTeamStatistics(homeTeamId),
-      this.api.getTeamStatistics(awayTeamId),
+      this.api.getTeamStatistics(String(homeTeamId)),
+      this.api.getTeamStatistics(String(awayTeamId)),
       this.api.getHeadToHead(homeTeamId, awayTeamId),
     ])
 
