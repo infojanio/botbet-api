@@ -1,44 +1,45 @@
-import { prisma } from "../../lib/prisma";
-import { ISignalRepository } from "../interfaces/ISignalRepository";
+import { prisma } from '../../lib/prisma'
 
-export class PrismaSignalRepository implements ISignalRepository {
-  async create(data: any) {
-    await prisma.signal.create({ data });
+export class PrismaSignalRepository {
+  async create(data: {
+    matchId: number
+    homeTeam: string
+    awayTeam: string
+    type: string
+    probability: number
+    status: string
+  }) {
+    return await prisma.signal.create({ data })
   }
 
-  async findMany(params: any) {
-    const where: any = {
-      ...(params.market && { market: params.market.toUpperCase() }),
-      ...(params.line && { line: params.line }),
-      ...(params.selection && { selection: params.selection.toUpperCase() }),
-      ...(params.minProb && { modelProb: { gte: params.minProb } }),
-      ...(params.from || params.to
-        ? { createdAt: { ...(params.from && { gte: params.from }), ...(params.to && { lte: params.to }) } }
-        : {}),
-      ...(params.competition && { match: { competition: { contains: params.competition, mode: "insensitive" } } }),
-    };
-
-    return prisma.signal.findMany({
-      where,
-      include: { match: { include: { homeTeam: true, awayTeam: true } } },
-      orderBy: { createdAt: "desc" },
-      skip: params.skip ?? 0,
-      take: params.take ?? 20,
-    });
+  async findById(id: string) {
+    return await prisma.signal.findUnique({ where: { id } })
   }
 
-  async count(params: any) {
-    const where: any = {
-      ...(params.market && { market: params.market.toUpperCase() }),
-      ...(params.line && { line: params.line }),
-      ...(params.selection && { selection: params.selection.toUpperCase() }),
-      ...(params.minProb && { modelProb: { gte: params.minProb } }),
-      ...(params.from || params.to
-        ? { createdAt: { ...(params.from && { gte: params.from }), ...(params.to && { lte: params.to }) } }
-        : {}),
-      ...(params.competition && { match: { competition: { contains: params.competition, mode: "insensitive" } } }),
-    };
+  async findMany() {
+    return await prisma.signal.findMany({
+      orderBy: { createdAt: 'desc' },
+    })
+  }
 
-    return prisma.signal.count({ where });
+  // ✅ Novo método: encontra sinal por partida + tipo
+  async findByMatchAndType(matchId: string | number, type: string) {
+    return await prisma.signal.findFirst({
+ where: {
+      matchId: String(matchId), // ✅ força tipo correto
+      type,
+    },
+    })
+  }
+
+  async updateStatus(id: string, status: string) {
+    return await prisma.signal.update({
+      where: { id },
+      data: { status },
+    })
+  }
+
+  async delete(id: string) {
+    return await prisma.signal.delete({ where: { id } })
   }
 }

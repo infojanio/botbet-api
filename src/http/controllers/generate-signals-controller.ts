@@ -1,15 +1,24 @@
 import { FastifyReply, FastifyRequest } from 'fastify'
-import { makeGenerateSignals } from '../../factories/make-generate-signals'
+import { makeGenerateSignalUseCase } from '../../factories/make-generate-signals'
 
 export class GenerateSignalsController {
-  async run(req: FastifyRequest, reply: FastifyReply) {
+  async handle(_: FastifyRequest, reply: FastifyReply) {
     try {
-      const job = makeGenerateSignals()
-      await job.execute()
-      return reply.send({ message: '✅ Sinais gerados e salvos com sucesso!' })
+      const useCase = makeGenerateSignalUseCase()
+      const result = await useCase.execute()
+
+      return reply.send({
+        status: 'success',
+        message: 'Sinais gerados com sucesso.',
+        data: result,
+      })
     } catch (error) {
-      console.error('Erro ao gerar sinais:', error)
-      return reply.status(500).send({ error: 'Erro ao gerar sinais' })
+      console.error(error)
+      return reply.status(500).send({
+        status: 'error',
+        message: 'Erro ao gerar sinais.',
+        error: (error as Error).message,
+      })
     }
   }
 }
