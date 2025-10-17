@@ -9,7 +9,7 @@ interface GeneratedSignal {
   homeTeam: string
   awayTeam: string
   type: string
-  probability: number
+  confidence: number
   description: string
 }
 
@@ -56,7 +56,7 @@ export class GenerateSignalsUseCase {
           homeTeam: home,
           awayTeam: away,
           type: 'CORNERS',
-          probability: 85,
+          confidence: 85,
           description: `Partida com tendência de +9.5 escanteios (${corners.total})`,
         })
       }
@@ -68,7 +68,7 @@ export class GenerateSignalsUseCase {
           homeTeam: home,
           awayTeam: away,
           type: 'CARDS',
-          probability: 80,
+          confidence: 80,
           description: `Alta incidência de cartões (${cards.total})`,
         })
       }
@@ -80,7 +80,7 @@ export class GenerateSignalsUseCase {
           homeTeam: home,
           awayTeam: away,
           type: 'GOALS',
-          probability: 75,
+          confidence: 75,
           description: `Jogo com tendência de over 3.5 (${goals.total} gols)`,
         })
       }
@@ -93,7 +93,7 @@ export class GenerateSignalsUseCase {
         await this.signalRepo.create({
           matchId: s.matchId,
           type: s.type,
-          probability: s.probability,
+          confidence: s.probability,
           status: 'active',
           awayTeam: s.awayTeam,
           homeTeam: s.homeTeam,

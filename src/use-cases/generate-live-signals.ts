@@ -1,58 +1,43 @@
-import { IExternalApiService } from "../repositories/interfaces/IExternalApiService"
-import { ISignalRepository } from "../repositories/interfaces/ISignalRepository"
-import { IMatchRepository } from "../repositories/interfaces/IMatchRepository"
+import { IExternalApiService } from "../repositories/interfaces/IExternalApiService";
+import { ISignalRepository } from "../repositories/interfaces/ISignalRepository";
+import { IMatchRepository } from "../repositories/interfaces/IMatchRepository";
 
 export class GenerateLiveSignalsUseCase {
   constructor(
     private apiService: IExternalApiService,
     private signalRepo: ISignalRepository,
-    private matchRepo: IMatchRepository,
+    private matchRepo: IMatchRepository
   ) {}
 
   async execute() {
-    console.log("🎯 Iniciando varredura de jogos ao vivo...")
-
-    const liveMatches = await this.apiService.getLiveMatches()
-    console.log(`📡 ${liveMatches.length} jogos em andamento detectados.`)
+    console.log("📡 Buscando partidas ao vivo...");
+    const liveMatches = await this.apiService.getLiveMatches();
 
     for (const m of liveMatches) {
-      const home = m.teams.home
-      const away = m.teams.away
-      const homeGoals = m.goals?.home ?? 0
-      const awayGoals = m.goals?.away ?? 0
-      const totalGoals = homeGoals + awayGoals
+      const gHome = m.home?.score ?? 0;
+      const gAway = m.away?.score ?? 0;
+      const totalG = gHome + gAway;
 
-      // Simula tempo de jogo (para teste, usando diferença de horário)
-      const startTime = new Date(m.fixture.date).getTime()
-      const now = Date.now()
-      const minutes = Math.floor((now - startTime) / 60000)
+      if (totalG >= 4) {
+        await this.matchRepo.upsert({
+          externalId: m.id,
+          date: new Date(m.status.utcTime),
+          status: "live",
+          leagueId: m.leagueId ?? 0,
+          homeTeamId: m.home.id,
+          awayTeamId: m.away.id,
+        });
 
-      // Simula odd favorita (mock)
-      const oddFavorito = 1.40 + Math.random() * 0.15
-
-      if (oddFavorito < 1.6 && totalGoals >= 3 && minutes <= 20) {
         await this.signalRepo.create({
-          matchId: String(m.fixture.id),
-          market: "LIVE",
-          line: 4.5,
-          selection: "Over",
-          modelProb: 0.85,
-          impliedProb: 1 / oddFavorito,
-          edge: 0.25,
-          confidence: 95,
-          reason: `Favorito com odd ${oddFavorito.toFixed(
-            2,
-          )}, ${totalGoals} gols até ${minutes}min`,
-        })
+          matchId: m.id,
+          type: "live-over25",
+          confidence: 90,
+          description: `🚀 ${m.home.name} x ${m.away.name}: ${totalG} gols — forte tendência de over`,
+          status: "active",
+        });
 
-        console.log(
-          `🔥 Sinal LIVE: ${home.name} x ${away.name} — ${totalGoals} gols (${minutes}min) | Odd ${oddFavorito.toFixed(
-            2,
-          )}`,
-        )
+        console.log(`🔥 Sinal gerado: ${m.home.name} x ${m.away.name} (${totalG} gols)`);
       }
     }
-
-    console.log("✅ Varredura de jogos ao vivo concluída.")
   }
 }

@@ -1,23 +1,36 @@
-import { Match, Odds, Signal, Team } from "@prisma/client";
+import { Match, Signal, Team, League } from "@prisma/client";
 
 export interface IMatchRepository {
   findUpcoming(params: {
     from?: Date;
     to?: Date;
-    market?: string;
-    minProb?: number;
     limit?: number;
-  }): Promise<(Match & { homeTeam: Team; awayTeam: Team; signals: Signal[] })[]>;
+  }): Promise<
+    (Match & {
+      league: League;
+      homeTeam: Team;
+      awayTeam: Team;
+      signals: Signal[];
+    })[]
+  >;
 
-  findById(id: string): Promise<(Match & { homeTeam: Team; awayTeam: Team; signals: Signal[]; odds: Odds[] }) | null>;
+  findById(id: number): Promise<
+    | (Match & {
+        league: League;
+        homeTeam: Team;
+        awayTeam: Team;
+        signals: Signal[];
+        stats: any[];
+      })
+    | null
+  >;
 
   upsert(data: {
-    id: string;
-    dateUtc: Date;
-    competition: string;
-    season?: string;
+    externalId: number;
+    date: Date;
     status: string;
-    homeTeam: { id: string; name: string; country?: string };
-    awayTeam: { id: string; name: string; country?: string };
-  }): Promise<Match & { homeTeam: Team; awayTeam: Team }>;
+    leagueId: number;
+    homeTeamId: number;
+    awayTeamId: number;
+  }): Promise<Match>;
 }

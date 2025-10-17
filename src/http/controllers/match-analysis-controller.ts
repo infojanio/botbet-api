@@ -5,7 +5,7 @@ import { ApiFootballService } from '../../services/external-api/api-football-ser
 import { makeGenerateSignalUseCase } from '../../factories/make-generate-signals'
 
 export async function getMatchAnalysis(request: FastifyRequest, reply: FastifyReply) {
-  const { id } = request.params as { id: string }
+  const { id } = request.params as { id: number }
   const api = new ApiFootballService()
 
   const matchData = await api.getMatchDetails(id)
@@ -36,7 +36,7 @@ export async function getMatchAnalysis(request: FastifyRequest, reply: FastifyRe
     matchId: Number(id),
     type: signalData.type,
     confidence: parseFloat(signalData.confidence),
-    description: signalData.reasoning,
+    description: signalData.descriptioning,
   })
 
   return reply.send({
@@ -87,6 +87,6 @@ function generateSignal(homeAvg: any, awayAvg: any, h2hAvg: any) {
   return {
     type,
     confidence: probability.toFixed(0),
-    reasoning: `Média de gols recentes (${avg.toFixed(2)}) indica ${type} (${probability}%)`,
+    descriptioning: `Média de gols recentes (${avg.toFixed(2)}) indica ${type} (${probability}%)`,
   }
 }

@@ -12,16 +12,16 @@ class GetSignalsUseCase {
             total,
             signals: signals.map((s) => ({
                 id: s.id,
-                date: s.match.dateUtc,
-                competition: s.match.competition,
+                date: s.match.date,
+                leagueName: s.match.league.name,
                 match: `${s.match.homeTeam.name} x ${s.match.awayTeam.name}`,
                 market: s.market,
                 line: s.line,
                 selection: s.selection,
-                prob: (s.modelProb * 100).toFixed(1) + "%",
-                edge: (s.edge * 100).toFixed(1) + "%",
+                prob: (s.confidence * 100).toFixed(1) + "%",
+             
                 confidence: s.confidence,
-                reason: s.reason,
+                description: s.description,
             })),
         };
     }

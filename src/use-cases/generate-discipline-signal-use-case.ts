@@ -1,47 +1,53 @@
-// src/use-cases/signals/generate-discipline-signal-use-case.ts
-
-import { prisma } from '../lib/prisma'
+import { PrismaSignalRepository } from '../repositories/prisma/prisma-signal-repository'
 
 interface DisciplineAnalysisInput {
-  matchId: number
+  matchId: number | number
+  homeTeam: string
+  awayTeam: string
   homeStats: { corners: number; yellowCards: number; redCards: number }
   awayStats: { corners: number; yellowCards: number; redCards: number }
 }
 
 export class GenerateDisciplineSignalUseCase {
-  async execute({ matchId, homeStats, awayStats }: DisciplineAnalysisInput) {
-    // 🔹 cálculo de médias
+  private signalRepo = new PrismaSignalRepository()
+
+  async execute({ matchId, homeTeam, awayTeam, homeStats, awayStats }: DisciplineAnalysisInput) {
     const totalCorners = homeStats.corners + awayStats.corners
-    const totalCards = homeStats.yellowCards + awayStats.yellowCards
+    const totalCards =
+      homeStats.yellowCards +
+      awayStats.yellowCards +
+      homeStats.redCards +
+      awayStats.redCards
 
     const cornerSignal = this.analyzeCorners(totalCorners)
     const cardSignal = this.analyzeCards(totalCards)
 
-    // 🔹 salvar sinais
-    const signals = []
+    const signals: any[] = []
 
     if (cornerSignal) {
-      const s = await prisma.signal.create({
-        data: {
-          matchId,
-          type: 'corners',
-          confidence: cornerSignal.confidence,
-          description: cornerSignal.reasoning,
-        },
+      const s = await this.signalRepo.create({
+        matchId: Number(matchId),
+        homeTeam,
+        awayTeam,
+        type: 'CORNERS',
+        confidence: cornerSignal.confidence,
+        status: 'active',
       })
       signals.push(s)
+      console.log(`⚽ Sinal gerado: ${cornerSignal.descriptioning}`)
     }
 
     if (cardSignal) {
-      const s = await prisma.signal.create({
-        data: {
-          matchId,
-          type: 'cards',
-          confidence: cardSignal.confidence,
-          description: cardSignal.reasoning,
-        },
+      const s = await this.signalRepo.create({
+        matchId: Number(matchId),
+        homeTeam,
+        awayTeam,
+        type: 'CARDS',
+        confidence: cardSignal.confidence,
+        status: 'active',
       })
       signals.push(s)
+      console.log(`🟨 Sinal gerado: ${cardSignal.descriptioning}`)
     }
 
     return signals
@@ -51,12 +57,12 @@ export class GenerateDisciplineSignalUseCase {
     if (total >= 10) {
       return {
         confidence: 85,
-        reasoning: `Partida com ${total} escanteios — tendência forte de over 9.5`,
+        descriptioning: `Partida com ${total} escanteios — tendência forte de over 9.5`,
       }
     } else if (total >= 7) {
       return {
         confidence: 70,
-        reasoning: `Média de ${total} escanteios — padrão favorável a over 7.5`,
+        descriptioning: `Média de ${total} escanteios — padrão favorável a over 7.5`,
       }
     }
     return null
@@ -66,12 +72,12 @@ export class GenerateDisciplineSignalUseCase {
     if (total >= 6) {
       return {
         confidence: 80,
-        reasoning: `Partida com alta agressividade (${total} cartões) — tendência over 5.5 cartões`,
+        descriptioning: `Partida com alta agressividade (${total} cartões) — tendência over 5.5 cartões`,
       }
     } else if (total >= 4) {
       return {
         confidence: 65,
-        reasoning: `Jogo moderado (${total} cartões) — padrão neutro`,
+        descriptioning: `Jogo moderado (${total} cartões) — padrão neutro`,
       }
     }
     return null

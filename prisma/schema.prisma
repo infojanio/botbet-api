@@ -7,7 +7,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-/* 🔐 Tabelas de Login / Acesso */
 model Role {
   id        Int      @id @default(autoincrement())
   name      String   @unique
@@ -16,14 +15,14 @@ model Role {
 }
 
 model User {
-  id            Int      @id @default(autoincrement())
-  name          String
-  email         String   @unique
-  passwordHash  String
-  roleId        Int
-  role          Role     @relation(fields: [roleId], references: [id])
-  sessions      Session[]
-  createdAt     DateTime @default(now())
+  id           Int       @id @default(autoincrement())
+  name         String
+  email        String    @unique
+  passwordHash String
+  roleId       Int
+  role         Role      @relation(fields: [roleId], references: [id])
+  sessions     Session[]
+  createdAt    DateTime  @default(now())
 }
 
 model Session {
@@ -35,57 +34,58 @@ model Session {
   expiresAt DateTime
 }
 
-/* ⚽ Tabelas de Análise Esportiva */
 model League {
-  id         Int       @id @default(autoincrement())
-  externalId String?   @unique
+  id         Int      @id @default(autoincrement())
+  externalId Int?     @unique
   name       String
   country    String?
   logo       String?
   season     Int?
   matches    Match[]
-  createdAt  DateTime  @default(now())
+  teams      Team[]
+  createdAt  DateTime @default(now())
 }
 
 model Team {
-  id          Int         @id @default(autoincrement())
-  externalId  String?     @unique
+  id          Int            @id @default(autoincrement())
+  externalId  Int?           @unique
   name        String
   logo        String?
   country     String?
   leagueId    Int?
-  league      League?     @relation(fields: [leagueId], references: [id])
-  homeMatches Match[]     @relation("homeTeam")
-  awayMatches Match[]     @relation("awayTeam")
+  league      League?        @relation(fields: [leagueId], references: [id])
+  homeMatches Match[]        @relation("homeTeam")
+  awayMatches Match[]        @relation("awayTeam")
+  history     MatchHistory[] @relation("HistoryOpponent")
   stats       MatchStat[]
-  createdAt   DateTime    @default(now())
+  createdAt   DateTime       @default(now())
 }
 
 model Match {
-  id           Int            @id @default(autoincrement())
-  externalId   String?        @unique
-  leagueId     Int
-  league       League         @relation(fields: [leagueId], references: [id])
-  homeTeamId   Int
-  homeTeam     Team           @relation("homeTeam", fields: [homeTeamId], references: [id])
-  awayTeamId   Int
-  awayTeam     Team           @relation("awayTeam", fields: [awayTeamId], references: [id])
-  date         DateTime
-  status       String
-  homeScore    Int?
-  awayScore    Int?
-  stats        MatchStat[]
-  history      MatchHistory[]
-  signals      Signal[]
-  createdAt    DateTime       @default(now())
+  id         Int            @id @default(autoincrement())
+  externalId Int?           @unique
+  leagueId   Int
+  league     League         @relation(fields: [leagueId], references: [id])
+  homeTeamId Int
+  homeTeam   Team           @relation("homeTeam", fields: [homeTeamId], references: [id])
+  awayTeamId Int
+  awayTeam   Team           @relation("awayTeam", fields: [awayTeamId], references: [id])
+  date       DateTime
+  status     String
+  homeScore  Int?
+  awayScore  Int?
+  stats      MatchStat[]
+  history    MatchHistory[]
+  signals    Signal[]
+  createdAt  DateTime       @default(now())
 }
 
 model MatchStat {
-  id            Int       @id @default(autoincrement())
+  id            Int      @id @default(autoincrement())
   matchId       Int
-  match         Match     @relation(fields: [matchId], references: [id])
+  match         Match    @relation(fields: [matchId], references: [id])
   teamId        Int
-  team          Team      @relation(fields: [teamId], references: [id])
+  team          Team     @relation(fields: [teamId], references: [id])
   possession    Float?
   expectedGoals Float?
   shotsOnTarget Int?
@@ -93,29 +93,30 @@ model MatchStat {
   yellowCards   Int?
   redCards      Int?
   fouls         Int?
-  createdAt     DateTime  @default(now())
+  createdAt     DateTime @default(now())
 }
 
 model MatchHistory {
-  id           Int       @id @default(autoincrement())
+  id           Int      @id @default(autoincrement())
   matchId      Int
-  match        Match     @relation(fields: [matchId], references: [id])
+  match        Match    @relation(fields: [matchId], references: [id])
   opponentId   Int
-  opponent     Team      @relation("HistoryOpponent", fields: [opponentId], references: [id])
+  opponent     Team     @relation("HistoryOpponent", fields: [opponentId], references: [id])
   result       String?
   goalsFor     Int?
   goalsAgainst Int?
   home         Boolean?
-  createdAt    DateTime  @default(now())
+  createdAt    DateTime @default(now())
 }
 
 model Signal {
-  id          Int       @id @default(autoincrement())
+  id          Int      @id @default(autoincrement())
   matchId     Int
-  match       Match     @relation(fields: [matchId], references: [id])
+  match       Match    @relation(fields: [matchId], references: [id])
   type        String
   confidence  Float
   description String?
-  result      String?   // "green" | "red" | "pending"
-  createdAt   DateTime  @default(now())
+  status      String
+  result      String? // "green" | "red" | "pending"
+  createdAt   DateTime @default(now())
 }

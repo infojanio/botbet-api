@@ -11,20 +11,20 @@ class PrismaStatsRepository {
                 : {})
         };
         const total = await prisma_1.prisma.signal.count({ where });
-        const avg = await prisma_1.prisma.signal.aggregate({ _avg: { modelProb: true, edge: true }, where });
+        const avg = await prisma_1.prisma.signal.aggregate({ _avg: { confidence: true,  }, where });
         const byMarket = await prisma_1.prisma.signal.groupBy({
             by: ["market"],
             _count: { market: true },
-            _avg: { modelProb: true, edge: true },
+            _avg: { confidence: true,  },
             where
         });
         const byLine = await prisma_1.prisma.signal.groupBy({
             by: ["market", "line"],
             _count: { _all: true },
-            _avg: { modelProb: true, edge: true },
+            _avg: { confidence: true,  },
             where
         });
-        return { total, avgProb: avg._avg.modelProb, avgEdge: avg._avg.edge, byMarket, byLine };
+        return { total, avgProb: avg._avg.confidence, byMarket, byLine };
     }
 }
 exports.PrismaStatsRepository = PrismaStatsRepository;

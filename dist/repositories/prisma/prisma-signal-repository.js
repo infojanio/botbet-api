@@ -11,11 +11,11 @@ class PrismaSignalRepository {
             ...(params.market && { market: params.market.toUpperCase() }),
             ...(params.line && { line: params.line }),
             ...(params.selection && { selection: params.selection.toUpperCase() }),
-            ...(params.minProb && { modelProb: { gte: params.minProb } }),
+            ...(params.minProb && { confidence: { gte: params.minProb } }),
             ...(params.from || params.to
                 ? { createdAt: { ...(params.from && { gte: params.from }), ...(params.to && { lte: params.to }) } }
                 : {}),
-            ...(params.competition && { match: { competition: { contains: params.competition, mode: "insensitive" } } }),
+            ...(params.league.name && { match: { league.name: { contains: params.league.name, mode: "insensitive" } } }),
         };
         return prisma_1.prisma.signal.findMany({
             where,
@@ -30,11 +30,11 @@ class PrismaSignalRepository {
             ...(params.market && { market: params.market.toUpperCase() }),
             ...(params.line && { line: params.line }),
             ...(params.selection && { selection: params.selection.toUpperCase() }),
-            ...(params.minProb && { modelProb: { gte: params.minProb } }),
+            ...(params.minProb && { confidence: { gte: params.minProb } }),
             ...(params.from || params.to
                 ? { createdAt: { ...(params.from && { gte: params.from }), ...(params.to && { lte: params.to }) } }
                 : {}),
-            ...(params.competition && { match: { competition: { contains: params.competition, mode: "insensitive" } } }),
+            ...(params.league.name && { match: { league.name: { contains: params.league.name, mode: "insensitive" } } }),
         };
         return prisma_1.prisma.signal.count({ where });
     }

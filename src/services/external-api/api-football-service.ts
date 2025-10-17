@@ -17,7 +17,7 @@ export class ApiFootballService implements IExternalApiService {
   getFixturesByDate(date: string): Promise<any[]> {
     throw new Error('Method not implemented.')
   }
-  getTeamStatistics(teamId: string ): Promise<any> {
+  getTeamStatistics(teamid: number ): Promise<any> {
     throw new Error('Method not implemented.')
   }
   private baseUrl = 'https://free-api-live-football-data.p.rapidapi.com'
@@ -43,29 +43,29 @@ export class ApiFootballService implements IExternalApiService {
   }
 
   // 📋 Detalhes de uma partida
-  async getMatchDetails(matchId: string) {
+  async getMatchDetails(matchId: number) {
     return this.getJson(`/football-match-detail?match_id=${matchId}`)
   }
 
   // 🧩 Estatísticas de uma partida
-  async getMatchStatistics(matchId: string | number) {
+  async getMatchStatistics(matchId: number | number) {
     return this.getJson(`/football-match-statistics?match_id=${matchId}`)
   }
 
   // 🔙 Confrontos diretos (Head to Head)
-async getHeadToHead(homeId: string | number, awayId: string | number) {
-  return this.getJson(`/football-head-to-head?team1_id=${homeId}&team2_id=${awayId}`)
+async getHeadToHead(homeid: number | number, awayid: number | number) {
+  return this.getJson(`/football-head-to-head?team1_id=${homeid}&team2_id=${awayid}`)
 }
 
   // 🧠 Últimos jogos de um time
-  async getRecentMatches(teamId: string, limit = 5) {
-    return this.getJson(`/football-team-last-matches?team_id=${teamId}&limit=${limit}`)
+  async getRecentMatches(teamid: number, limit = 5) {
+    return this.getJson(`/football-team-last-matches?team_id=${teamid}&limit=${limit}`)
   }
 
   // 🏟️ ✅ Times de uma liga
 
-  async getTeamsByLeague(leagueId: string | number) {
-  return this.getJson(`/football-teams-by-league?league_id=${leagueId}`)
+  async getTeamsByLeague(leagueid: number | number) {
+  return this.getJson(`/football-teams-by-league?league_id=${leagueid}`)
 }
 
   // 🔹 Função genérica interna para requisições

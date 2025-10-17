@@ -3,21 +3,21 @@ import { IMatchRepository } from "../repositories/interfaces/IMatchRepository";
 export class GetMatchesUseCase {
   constructor(private repo: IMatchRepository) {}
 
-  async execute(params: { from?: Date; to?: Date; market?: string; minProb?: number; limit?: number }) {
+  async execute(params: { from?: Date; to?: Date; limit?: number }) {
     const matches = await this.repo.findUpcoming(params);
+
     return matches.map((m) => ({
       id: m.id,
-      date: m.dateUtc,
-      competition: m.competition,
+      date: m.date,
+      competition: m.league.name,
       home: m.homeTeam.name,
       away: m.awayTeam.name,
+      status: m.status,
       signals: m.signals.map((s) => ({
-        market: s.market,
-        line: s.line,
-        selection: s.selection,
-        prob: (s.modelProb * 100).toFixed(1) + "%",
-        edge: (s.edge * 100).toFixed(1) + "%",
+        type: s.type,
         confidence: s.confidence,
+        status: s.status,
+        description: s.description,
       })),
     }));
   }

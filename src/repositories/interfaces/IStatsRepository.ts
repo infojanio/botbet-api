@@ -1,3 +1,7 @@
 export interface IStatsRepository {
-  getAggregates(params: { from?: Date; to?: Date; market?: string }): Promise<any>;
+  getSummary(params?: any): Promise<{
+    total: number;
+    avgConfidence: number;
+    byType: { type: string; count: number; avgConfidence: number }[];
+  }>;
 }

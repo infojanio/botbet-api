@@ -9,16 +9,16 @@ class GetMatchesUseCase {
         const matches = await this.repo.findUpcoming(params);
         return matches.map((m) => ({
             id: m.id,
-            date: m.dateUtc,
-            competition: m.competition,
+            date: m.date,
+            leagueName: m.league.name,
             home: m.homeTeam.name,
             away: m.awayTeam.name,
             signals: m.signals.map((s) => ({
                 market: s.market,
                 line: s.line,
                 selection: s.selection,
-                prob: (s.modelProb * 100).toFixed(1) + "%",
-                edge: (s.edge * 100).toFixed(1) + "%",
+                prob: (s.confidence * 100).toFixed(1) + "%",
+            
                 confidence: s.confidence,
             })),
         }));

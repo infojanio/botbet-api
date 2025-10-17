@@ -1,7 +1,8 @@
-import { makeGenerateSignals } from "../factories/make-generate-signals";
+
+import { makeGenerateSignalUseCase } from '../factories/make-generate-signals'
 
 async function run() {
-  const useCase = makeGenerateSignals();
+  const useCase = makeGenerateSignalUseCase();
   await useCase.execute();
   process.exit(0);
 }

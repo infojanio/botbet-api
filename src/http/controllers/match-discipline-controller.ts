@@ -5,7 +5,7 @@ import { ApiFootballService } from '../../services/external-api/api-football-ser
 import { makeGenerateDisciplineSignalUseCase } from '../../factories/make-generate-discipline-signal-use-case'
 
 export async function getMatchDisciplineAnalysis(request: FastifyRequest, reply: FastifyReply) {
-  const { id } = request.params as { id: string }
+  const { id } = request.params as { id: number }
   const api = new ApiFootballService()
 
   const statsData = await api.getMatchStatistics(id)

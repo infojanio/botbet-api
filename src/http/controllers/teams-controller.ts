@@ -14,7 +14,7 @@ export async function getLeaguesController(req: FastifyRequest, reply: FastifyRe
 }
 
 export async function getTeamsByLeagueController(req: FastifyRequest, reply: FastifyReply) {
-  const { leagueId } = req.params as { leagueId: string }
+  const { leagueId } = req.params as { leagueid: number }
 
   try {
     const api = new ApiFootballService()

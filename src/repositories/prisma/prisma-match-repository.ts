@@ -2,66 +2,64 @@ import { prisma } from "../../lib/prisma";
 import { IMatchRepository } from "../interfaces/IMatchRepository";
 
 export class PrismaMatchRepository implements IMatchRepository {
-  async findUpcoming(params: { from?: Date; to?: Date; market?: string; minProb?: number; limit?: number }) {
+  async findUpcoming(params: { from?: Date; to?: Date; limit?: number }) {
     return prisma.match.findMany({
       where: {
-        dateUtc: { gte: params.from ?? new Date(), lte: params.to },
+        date: {
+          gte: params.from ?? new Date(),
+          lte: params.to ?? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        },
         status: "scheduled",
       },
       include: {
+        league: true,
         homeTeam: true,
         awayTeam: true,
-        signals: {
-          where: {
-            ...(params.market && { market: params.market.toUpperCase() }),
-            ...(params.minProb && { modelProb: { gte: params.minProb } }),
-          },
-          orderBy: { createdAt: "desc" }
-        },
+        signals: true,
       },
-      orderBy: { dateUtc: "asc" },
+      orderBy: { date: "asc" },
       take: params.limit ?? 50,
     });
   }
 
-  async findById(id: string) {
+  async findById(id: number) {
     return prisma.match.findUnique({
       where: { id },
-      include: { homeTeam: true, awayTeam: true, signals: true, odds: true },
+      include: {
+        league: true,
+        homeTeam: true,
+        awayTeam: true,
+        signals: true,
+        stats: true,
+      },
     });
   }
 
-  async upsert(data: any) {
+  async upsert(data: {
+    externalId: number;
+    date: Date;
+    status: string;
+    leagueId: number;
+    homeTeamId: number;
+    awayTeamId: number;
+  }) {
     return prisma.match.upsert({
-      where: { id: data.id },
+      where: { externalId: data.externalId },
       update: {
-        dateUtc: data.dateUtc,
-        competition: data.competition,
-        season: data.season,
+        date: data.date,
         status: data.status,
-        homeTeamId: data.homeTeam.id,
-        awayTeamId: data.awayTeam.id,
+        leagueId: data.leagueId,
+        homeTeamId: data.homeTeamId,
+        awayTeamId: data.awayTeamId,
       },
       create: {
-        id: data.id,
-        dateUtc: data.dateUtc,
-        competition: data.competition,
-        season: data.season,
+        externalId: data.externalId,
+        date: data.date,
         status: data.status,
-        homeTeam: {
-          connectOrCreate: {
-            where: { id: data.homeTeam.id },
-            create: { id: data.homeTeam.id, name: data.homeTeam.name, country: data.homeTeam.country },
-          },
-        },
-        awayTeam: {
-          connectOrCreate: {
-            where: { id: data.awayTeam.id },
-            create: { id: data.awayTeam.id, name: data.awayTeam.name, country: data.awayTeam.country },
-          },
-        },
+        leagueId: data.leagueId,
+        homeTeamId: data.homeTeamId,
+        awayTeamId: data.awayTeamId,
       },
-      include: { homeTeam: true, awayTeam: true },
     });
   }
 }

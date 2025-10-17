@@ -4,7 +4,7 @@ import { FastifyReply, FastifyRequest } from 'fastify'
 import { prisma } from '../../lib/prisma'
 
 export async function getSignalDetail(request: FastifyRequest, reply: FastifyReply) {
-  const { id } = request.params as { id: string }
+  const { id } = request.params as { id: number }
 
   const signal = await prisma.signal.findUnique({
     where: { id: Number(id) },

@@ -2,5 +2,6 @@ import { PrismaMatchRepository } from "../repositories/prisma/prisma-match-repos
 import { GetMatchesUseCase } from "../use-cases/get-matches";
 
 export function makeGetMatches() {
-  return new GetMatchesUseCase(new PrismaMatchRepository());
+  const repo = new PrismaMatchRepository();
+  return new GetMatchesUseCase(repo);
 }

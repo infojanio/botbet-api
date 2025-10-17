@@ -1,28 +1,24 @@
-import { Match, Signal, Team } from "@prisma/client";
+import { Signal } from "@prisma/client";
 
 export interface ISignalRepository {
   create(data: {
-    matchId: string | number;
-    homeTeam: string;
-    awayTeam: string;
+    matchId: number;
     type: string;
-    probability: number;
+    confidence: number;
+    description?: string;
     status: string;
+    result?: string;
   }): Promise<Signal>;
 
-  findById(id: string): Promise<Signal | null>;
+  findById(id: number): Promise<Signal | null>;
 
-  findMany(params?: any): Promise<
-    (Signal & {
-      match?: Match & { homeTeam?: Team; awayTeam?: Team };
-    })[]
-  >;
+  findMany(params?: any): Promise<Signal[]>;
 
   findByMatchAndType(matchId: number, type: string): Promise<Signal | null>;
 
-  updateStatus(id: string, status: string): Promise<Signal>;
+  updateStatus(id: number, status: string): Promise<Signal>;
 
-  delete(id: string): Promise<Signal>;
+  delete(id: number): Promise<Signal>;
 
   count(params?: any): Promise<number>;
 }

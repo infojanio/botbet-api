@@ -11,8 +11,8 @@ class GetMatchDetailsUseCase {
             return null;
         return {
             id: match.id,
-            date: match.dateUtc,
-            competition: match.competition,
+            date: match.date,
+            league.name: match.league.name,
             home: match.homeTeam.name,
             away: match.awayTeam.name,
             status: match.status,

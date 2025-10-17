@@ -17,12 +17,12 @@ class GenerateSignalsUseCase {
             const away = m.teams.away;
             // Salva sempre os times e o jogo
             const match = await this.matchRepo.upsert({
-                id: String(m.fixture.id),
-                dateUtc: new Date(m.fixture.date),
+                id: number(m.fixture.id),
+                date: new Date(m.fixture.date),
                 status: m.fixture.status.short,
-                competition: m.league.name,
-                homeTeam: { id: String(home.id), name: home.name },
-                awayTeam: { id: String(away.id), name: away.name },
+                leagueName: m.league.name,
+                homeTeam: { id: number(home.id), name: home.name },
+                awayTeam: { id: number(away.id), name: away.name },
             });
             console.log(`⚽ Jogo salvo: ${home.name} x ${away.name}`);
             // Tenta buscar odds
@@ -43,8 +43,8 @@ class GenerateSignalsUseCase {
                             const selection = o.value;
                             const price = parseFloat(o.odd);
                             const impliedProb = 1 / price;
-                            const modelProb = Math.random(); // mock, ajuste aqui
-                            const edge = modelProb - impliedProb;
+                            const confidence = Math.random(); // mock, ajuste aqui
+                            const edge = confidence - impliedProb;
                             if (edge < 0.06)
                                 continue;
                             await this.signalRepo.create({
@@ -52,11 +52,10 @@ class GenerateSignalsUseCase {
                                 market: bet.name === 'Match Goals' ? 'GOALS' : 'CORNERS',
                                 line: parseFloat(o.handicap ?? '0'),
                                 selection,
-                                modelProb,
-                                impliedProb,
-                                edge,
-                                confidence: Math.floor(modelProb * 100),
-                                reason: 'Mock calculation',
+                                confidence,
+                                impliedProb,                               
+                                confidence: Math.floor(confidence * 100),
+                                description: 'Mock calculation',
                             });
                             console.log(`✅ Sinal criado: ${bet.name} ${o.handicap} ${selection} @${price}`);
                         }

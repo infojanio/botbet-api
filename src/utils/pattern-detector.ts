@@ -9,3 +9,5 @@ export function detectPatterns(teamStats: any) {
 
   return patterns
 }
+
+

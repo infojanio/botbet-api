@@ -6,7 +6,7 @@ class PrismaMatchRepository {
     async findUpcoming(params) {
         return prisma_1.prisma.match.findMany({
             where: {
-                dateUtc: { gte: params.from ?? new Date(), lte: params.to },
+                date: { gte: params.from ?? new Date(), lte: params.to },
                 status: "scheduled",
             },
             include: {
@@ -15,12 +15,12 @@ class PrismaMatchRepository {
                 signals: {
                     where: {
                         ...(params.market && { market: params.market.toUpperCase() }),
-                        ...(params.minProb && { modelProb: { gte: params.minProb } }),
+                        ...(params.minProb && { confidence: { gte: params.minProb } }),
                     },
                     orderBy: { createdAt: "desc" }
                 },
             },
-            orderBy: { dateUtc: "asc" },
+            orderBy: { date: "asc" },
             take: params.limit ?? 50,
         });
     }
@@ -34,8 +34,8 @@ class PrismaMatchRepository {
         return prisma_1.prisma.match.upsert({
             where: { id: data.id },
             update: {
-                dateUtc: data.dateUtc,
-                competition: data.competition,
+                date: data.date,
+                league.name: data.league.name,
                 season: data.season,
                 status: data.status,
                 homeTeamId: data.homeTeam.id,
@@ -43,8 +43,8 @@ class PrismaMatchRepository {
             },
             create: {
                 id: data.id,
-                dateUtc: data.dateUtc,
-                competition: data.competition,
+                date: data.date,
+                league.name: data.league.name,
                 season: data.season,
                 status: data.status,
                 homeTeam: {
