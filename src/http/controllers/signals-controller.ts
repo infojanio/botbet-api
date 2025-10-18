@@ -1,31 +1,19 @@
-import { FastifyReply, FastifyRequest } from 'fastify'
-import { makeGenerateSignalsUseCase } from '../../factories/make-generate-signals'
-import { makeListSignalsUseCase } from '../../factories/make-list-signals'
+import { FastifyRequest, FastifyReply } from 'fastify'
+import { makeGetSignals } from '../../factories/make-get-signals'
 
 export class SignalsController {
-  async generate(req: FastifyRequest, reply: FastifyReply) {
+  async index(req: FastifyRequest, reply: FastifyReply) {
     try {
-      const { league, limit } = req.query as any
-      const useCase = makeGenerateSignalsUseCase()
-      const result = await useCase.execute({
-        league,
-        limit: Number(limit) || 5,
-      })
-      return reply.send(result)
-    } catch (err) {
-      console.error('❌ Erro ao gerar sinais:', err)
-      return reply.status(500).send({ error: err.message })
-    }
-  }
+      const getSignals = makeGetSignals()
+      const result = await getSignals.execute()
 
-  async list(req: FastifyRequest, reply: FastifyReply) {
-    try {
-      const useCase = makeListSignalsUseCase()
-      const signals = await useCase.execute()
-      return reply.send(signals)
+      return reply.status(200).send({
+        count: result.length,
+        signals: result,
+      })
     } catch (err) {
       console.error('❌ Erro ao listar sinais:', err)
-      return reply.status(500).send({ error: err.message })
+      return reply.status(500).send({ error: 'Erro ao buscar sinais' })
     }
   }
 }

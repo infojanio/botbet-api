@@ -1,8 +1,8 @@
 import { FastifyInstance } from 'fastify'
 import { SignalsController } from '../controllers/signals-controller'
 
-const controller = new SignalsController()
-
 export async function signalsRoutes(app: FastifyInstance) {
-  app.get('/signals', (req, reply) => controller.list(req, reply))
+  const controller = new SignalsController()
+
+  app.get('/signals', (req, reply) => controller.index(req, reply))
 }

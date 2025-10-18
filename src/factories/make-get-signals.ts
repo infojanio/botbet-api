@@ -1,6 +1,6 @@
-import { PrismaSignalRepository } from "../repositories/prisma/prisma-signal-repository";
-import { GetSignalsUseCase } from "../use-cases/get-signals";
+import { GetSignalsUseCase } from '../use-cases/get-signals-use-case'
 
 export function makeGetSignals() {
-  return new GetSignalsUseCase(new PrismaSignalRepository());
+  const useCase = new GetSignalsUseCase()
+  return useCase
 }

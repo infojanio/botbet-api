@@ -1,8 +1,7 @@
-import { FastifyInstance } from "fastify";
-import { StatsController } from "../controllers/stats-controller";
-
-const controller = new StatsController();
+import { FastifyInstance } from 'fastify'
+import { getTeamStatsController } from '../controllers/stats-controller'
 
 export async function statsRoutes(app: FastifyInstance) {
-  app.get("/stats", (req, reply) => controller.summary(req, reply));
+  // Estatísticas agregadas por time
+  app.get('/stats/:teamId', getTeamStatsController)
 }

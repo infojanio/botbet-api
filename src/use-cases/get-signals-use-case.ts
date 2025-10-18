@@ -1,31 +1,30 @@
-import { prisma } from '../db/prisma'
+import { prisma } from '../lib/prisma'
 
-export class ListSignalsUseCase {
+export class GetSignalsUseCase {
   async execute() {
     const signals = await prisma.signal.findMany({
-      orderBy: { createdAt: 'desc' },
       include: {
         match: {
           include: {
             homeTeam: true,
             awayTeam: true,
+            league: true,
           },
         },
       },
-      take: 30,
+      orderBy: { createdAt: 'desc' },
+      take: 50, // limite para não sobrecarregar
     })
 
     return signals.map((s) => ({
       id: s.id,
+      league: s.match.league.name,
       match: `${s.match.homeTeam.name} x ${s.match.awayTeam.name}`,
-      league: s.match.competition,
-      market: s.market,
-      line: s.line,
-      selection: s.selection,
-      modelProb: +(s.modelProb * 100).toFixed(1),
+      type: s.type,
       confidence: s.confidence,
-      reason: s.reason,
-      createdAt: s.createdAt,
+      description: s.description,
+      status: s.status,
+      date: s.match.date,
     }))
   }
 }

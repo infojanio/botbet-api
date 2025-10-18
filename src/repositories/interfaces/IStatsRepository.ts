@@ -1,3 +1,10 @@
 export interface IStatsRepository {
-  getAggregates(params: { from?: Date; to?: Date; market?: string }): Promise<any>;
+  getByTeam(
+    teamId: number,
+  ): Promise<{
+    avgGoals: number
+    avgCorners: number
+    avgCards: number
+    totalMatches: number
+  }>
 }
