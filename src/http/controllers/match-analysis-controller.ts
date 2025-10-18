@@ -1,12 +1,12 @@
 import { FastifyRequest, FastifyReply } from 'fastify'
-import { makeAnalyzeMatchUseCase } from '../../factories/make-analyze-match'
+import { GenerateSignalsUseCase } from '../../use-cases/generate-signals-use-case'
 
 export async function runAnalysisController(
-  request: FastifyRequest,
+  req: FastifyRequest,
   reply: FastifyReply,
 ) {
-  const { id } = request.params as { id: string }
-  const useCase = makeAnalyzeMatchUseCase()
-  const analysis = await useCase.execute(Number(id))
-  return reply.send(analysis)
+  const { id } = req.params as { id: string }
+  const useCase = new GenerateSignalsUseCase()
+  const result = await useCase.execute(Number(id))
+  reply.send(result)
 }

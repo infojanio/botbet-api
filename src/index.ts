@@ -5,6 +5,7 @@ import { statsRoutes } from './http/routes/stats-routes'
 
 import cron from 'node-cron'
 import { leaguesRoutes } from './http/routes/leagues-routes'
+import { advancedAnalysisRoutes } from './http/routes/advanced-analysis-routes'
 
 const app = Fastify({ logger: true })
 
@@ -12,6 +13,7 @@ app.register(leaguesRoutes)
 app.register(matchesRoutes)
 app.register(signalsRoutes)
 app.register(statsRoutes)
+app.register(advancedAnalysisRoutes)
 
 /* Schedule job every 6 hours
 cron.schedule('0, 6 * * *', async () => {

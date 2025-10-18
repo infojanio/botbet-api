@@ -1,101 +1,182 @@
 import { prisma } from '../lib/prisma'
+import { ApiFootballService } from '../services/external-api/api-football-service'
 
 export class GenerateSignalsUseCase {
-  async execute() {
-    const matches = await prisma.match.findMany({
-      where: { status: { not: 'finished' } },
-      include: {
-        homeTeam: { include: { stats: true } },
-        awayTeam: { include: { stats: true } },
-        league: true,
-      },
-    })
+  private api: ApiFootballService
 
-    const createdSignals = []
+  constructor() {
+    this.api = new ApiFootballService()
+  }
+
+  async execute(matchId?: number) {
+    // 🔹 Busca os jogos do banco (um específico ou todos)
+    const matches = matchId
+      ? await prisma.match.findMany({
+          where: { id: matchId },
+          include: { league: true, homeTeam: true, awayTeam: true },
+        })
+      : await prisma.match.findMany({
+          include: { league: true, homeTeam: true, awayTeam: true },
+        })
+
+    const signals = []
 
     for (const match of matches) {
-      const homeStats = match.homeTeam.stats
-      const awayStats = match.awayTeam.stats
+      console.log(
+        `📊 Analisando ${match.homeTeam.name} x ${match.awayTeam.name}...`,
+      )
 
-      // 🔹 Substituímos goalsFor por expectedGoals ou shotsOnTarget
-      const avgHomeAttack =
-        homeStats.reduce(
-          (sum, s) => sum + (s.expectedGoals ?? s.shotsOnTarget ?? 0),
-          0,
-        ) / (homeStats.length || 1)
+      try {
+        // ✅ Obtém estatísticas reais do jogo
+        const statsData = await this.api.getMatchStatistics(
+          Number(match.externalId),
+        )
 
-      const avgAwayAttack =
-        awayStats.reduce(
-          (sum, s) => sum + (s.expectedGoals ?? s.shotsOnTarget ?? 0),
-          0,
-        ) / (awayStats.length || 1)
-
-      const avgHomeCards =
-        homeStats.reduce((sum, s) => sum + (s.yellowCards ?? 0), 0) /
-        (homeStats.length || 1)
-
-      const avgAwayCards =
-        awayStats.reduce((sum, s) => sum + (s.yellowCards ?? 0), 0) /
-        (awayStats.length || 1)
-
-      const avgCorners =
-        [...homeStats, ...awayStats].reduce(
-          (sum, s) => sum + (s.corners ?? 0),
-          0,
-        ) / (homeStats.length + awayStats.length || 1)
-
-      // 🔹 Regras simples de sinal
-      const signals = []
-
-      if (avgHomeAttack + avgAwayAttack >= 3.5) {
-        signals.push({
-          matchId: match.id,
-          type: 'Over 2.5 Goals',
-          confidence: 85,
-          description: `Média ofensiva: ${(
-            avgHomeAttack + avgAwayAttack
-          ).toFixed(2)} — tendência Over 2.5`,
-          status: 'active',
-        })
-      }
-
-      if (avgHomeCards + avgAwayCards >= 4.5) {
-        signals.push({
-          matchId: match.id,
-          type: 'Over 4.5 Cards',
-          confidence: 80,
-          description: `Média de cartões: ${(
-            avgHomeCards + avgAwayCards
-          ).toFixed(2)} — jogo com forte probabilidade de cartões`,
-          status: 'active',
-        })
-      }
-
-      if (avgCorners >= 8.5) {
-        signals.push({
-          matchId: match.id,
-          type: 'Over 8.5 Corners',
-          confidence: 75,
-          description: `Média de escanteios: ${avgCorners.toFixed(
-            2,
-          )} — tendência de muitos escanteios`,
-          status: 'active',
-        })
-      }
-
-      // 🔹 Salva sinais no banco
-      for (const s of signals) {
-        const existing = await prisma.signal.findFirst({
-          where: { matchId: match.id, type: s.type },
-        })
-
-        if (!existing) {
-          const created = await prisma.signal.create({ data: s })
-          createdSignals.push(created)
+        if (
+          !statsData?.response?.stats ||
+          !Array.isArray(statsData.response.stats)
+        ) {
+          console.log(`⚠️ Nenhuma estatística encontrada para ${match.id}`)
+          continue
         }
+
+        const stats = statsData.response.stats
+
+        // 🔹 Extrai valores principais
+        const possession = this.findStatValue(stats, 'BallPossesion')
+        const shotsOnTarget = this.findStatValue(stats, 'ShotsOnTarget')
+        const corners = this.findStatValue(stats, 'corners')
+        const yellowCards = this.findStatValue(stats, 'yellow_cards')
+        const redCards = this.findStatValue(stats, 'red_cards')
+        const expectedGoals = this.findStatValue(stats, 'expected_goals')
+
+        // 🔹 Armazena entradas calculadas
+        const entries: {
+          type: string
+          confidence: number
+          description: string
+          status: string
+        }[] = []
+
+        // --- GOLS (xG total)
+        const totalXG = expectedGoals.home + expectedGoals.away
+        if (totalXG >= 2.5) {
+          entries.push({
+            type: 'GOALS_OVER_2_5',
+            confidence: Math.min(100, totalXG * 35),
+            description: `Alta probabilidade de +2.5 gols (xG total: ${totalXG.toFixed(
+              2,
+            )})`,
+            status: 'pending',
+          })
+        }
+
+        // --- ESCANTEIOS
+        const totalCorners = corners.home + corners.away
+        if (totalCorners >= 8) {
+          entries.push({
+            type: 'CORNERS_OVER_8',
+            confidence: 80,
+            description: `Alta frequência de escanteios (${totalCorners} totais)`,
+            status: 'pending',
+          })
+        }
+
+        // --- CARTÕES
+        const totalCards =
+          yellowCards.home + yellowCards.away + redCards.home + redCards.away
+        if (totalCards >= 5) {
+          entries.push({
+            type: 'CARDS_OVER_4_5',
+            confidence: 70,
+            description: `Jogo quente (${totalCards} cartões no total)`,
+            status: 'pending',
+          })
+        }
+
+        // --- POSSE DE BOLA
+        if (possession.home > 60) {
+          entries.push({
+            type: 'FAVORITE_DOMINANCE',
+            confidence: 75,
+            description: `${match.homeTeam.name} domina a posse (${possession.home}%)`,
+            status: 'pending',
+          })
+        }
+
+        // --- FINALIZAÇÕES NO ALVO
+        if (shotsOnTarget.home + shotsOnTarget.away >= 8) {
+          entries.push({
+            type: 'HIGH_SHOTS_ACTIVITY',
+            confidence: 65,
+            description: `Partida com muitas finalizações no alvo (${
+              shotsOnTarget.home + shotsOnTarget.away
+            })`,
+            status: 'pending',
+          })
+        }
+
+        // 🔹 Salva sinais no banco (somente se houver algo)
+        for (const e of entries) {
+          await prisma.signal.create({
+            data: {
+              matchId: match.id,
+              type: e.type,
+              confidence: e.confidence,
+              description: e.description,
+              status: e.status,
+            },
+          })
+        }
+
+        console.log(
+          `🧩 ${entries.length} sinais gerados para ${match.homeTeam.name} x ${match.awayTeam.name}`,
+        )
+        signals.push(...entries)
+
+        // 💤 Delay para evitar bloqueio da API
+        await this.delay(1000)
+      } catch (error) {
+        console.log(
+          `❌ Erro ao processar ${match.homeTeam.name} x ${match.awayTeam.name}:`,
+          error instanceof Error ? error.message : error,
+        )
+        await this.delay(1500)
       }
     }
 
-    return createdSignals
+    console.log('✅ Análise concluída.')
+    return signals
+  }
+
+  // 🔧 Normaliza o valor estatístico (remove % e texto)
+  private parseValue(value: any): number {
+    if (!value) return 0
+    if (typeof value === 'string') {
+      const numeric = value.match(/[\d.]+/)
+      return numeric ? parseFloat(numeric[0]) : 0
+    }
+    return Number(value) || 0
+  }
+
+  // 🔍 Busca valor em grupo de estatísticas
+  private findStatValue(stats: any[], key: string) {
+    for (const group of stats) {
+      if (!group.stats) continue
+      for (const item of group.stats) {
+        if (item.key === key) {
+          return {
+            home: this.parseValue(item.stats?.[0]),
+            away: this.parseValue(item.stats?.[1]),
+          }
+        }
+      }
+    }
+    return { home: 0, away: 0 }
+  }
+
+  // 🕐 Delay auxiliar
+  private delay(ms: number) {
+    return new Promise((resolve) => setTimeout(resolve, ms))
   }
 }

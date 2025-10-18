@@ -54,7 +54,30 @@ export class ApiFootballService {
     return []
   }
 
-  async getHeadToHead(homeId: string, awayId: string) {
-    return this.getJson(`/football-h2h?home_id=${homeId}&away_id=${awayId}`)
+  /** 🆕 Obter últimas 5 partidas de um time (a partir de todas da liga) */
+  async getTeamLastMatches(teamId: number, leagueId: number) {
+    const matches = await this.getMatchesByLeague(leagueId)
+    const teamMatches = matches.filter(
+      (m: any) => m.home?.id == teamId || m.away?.id == teamId,
+    )
+    return teamMatches.slice(0, 5)
+  }
+
+  /** 🆕 Obter últimos 5 confrontos diretos (H2H) entre dois times */
+  async getHeadToHead(homeId: number, awayId: number, leagueId: number) {
+    const matches = await this.getMatchesByLeague(leagueId)
+    const h2h = matches.filter(
+      (m: any) =>
+        (m.home?.id == homeId && m.away?.id == awayId) ||
+        (m.home?.id == awayId && m.away?.id == homeId),
+    )
+    return h2h.slice(0, 5)
+  }
+
+  async getMatchStatistics(eventId: number) {
+    const data = await this.getJson(
+      `/football-get-match-all-stats?eventid=${eventId}`,
+    )
+    return data.response?.stats || []
   }
 }

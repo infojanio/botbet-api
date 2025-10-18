@@ -4,17 +4,25 @@ import { prisma } from '../lib/prisma'
 
 async function run() {
   console.log('📊 Iniciando geração de sinais com base nos dados do banco...')
-  const useCase = makeGenerateSignals()
 
-  const result = await useCase.execute()
+  try {
+    const useCase = makeGenerateSignals()
 
-  console.log(`✅ ${result.length} sinais gerados com sucesso!`)
-  await prisma.$disconnect()
-  process.exit(0)
+    // 🔹 Executa geração para todos os jogos
+    const result = await useCase.execute()
+
+    console.log(`✅ ${result.length} sinais gerados com sucesso!`)
+  } catch (err) {
+    if (err instanceof Error) {
+      console.error('❌ Erro ao gerar sinais:', err.message)
+    }
+  } finally {
+    // ✅ Garante fechamento das conexões Prisma
+    await prisma.$disconnect()
+
+    // ✅ Garante que o processo seja finalizado
+    process.exit(0)
+  }
 }
 
-run().catch(async (err) => {
-  console.error('❌ Erro ao gerar sinais:', err)
-  await prisma.$disconnect()
-  process.exit(1)
-})
+run()

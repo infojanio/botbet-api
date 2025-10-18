@@ -94,6 +94,8 @@ model MatchStat {
   redCards      Int?
   fouls         Int?
   createdAt     DateTime @default(now())
+
+  @@unique([matchId, teamId])
 }
 
 model MatchHistory {
@@ -119,4 +121,6 @@ model Signal {
   status      String
   result      String? // "green" | "red" | "pending"
   createdAt   DateTime @default(now())
+
+  @@unique([matchId, type])
 }
