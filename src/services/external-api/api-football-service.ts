@@ -1,4 +1,5 @@
 import fetch from 'node-fetch'
+import { prisma } from '../../lib/prisma'
 
 export class ApiFootballService {
   private baseUrl = 'https://free-api-live-football-data.p.rapidapi.com'
@@ -63,21 +64,164 @@ export class ApiFootballService {
     return teamMatches.slice(0, 5)
   }
 
-  /** 🆕 Obter últimos 5 confrontos diretos (H2H) entre dois times */
-  async getHeadToHead(homeId: number, awayId: number, leagueId: number) {
-    const matches = await this.getMatchesByLeague(leagueId)
-    const h2h = matches.filter(
-      (m: any) =>
-        (m.home?.id == homeId && m.away?.id == awayId) ||
-        (m.home?.id == awayId && m.away?.id == homeId),
-    )
-    return h2h.slice(0, 5)
+  /**
+   * 🔹 Obtém todas as estatísticas detalhadas de uma partida
+   * Endpoint: /football-get-match-all-stats?eventid={id}
+   */
+  async getMatchStatistics(matchId: number | string) {
+    if (!matchId) {
+      console.warn('⚠️ getMatchStatistics chamado sem matchId válido')
+      return null
+    }
+
+    const endpoint = `/football-get-match-all-stats?eventid=${matchId}`
+
+    try {
+      const response = await this.getJson(endpoint)
+
+      if (response?.status === 'success' && response?.response?.stats) {
+        // Normaliza estrutura para facilitar o uso no use-case
+        return {
+          status: 'success',
+          response: {
+            stats: response.response.stats.map((group: any) => ({
+              title: group.title,
+              key: group.key,
+              stats: Array.isArray(group.stats)
+                ? group.stats.map((s: any) => ({
+                    title: s.title,
+                    key: s.key,
+                    stats: s.stats,
+                    format: s.format,
+                    type: s.type,
+                  }))
+                : [],
+            })),
+          },
+        }
+      } else {
+        console.warn(
+          `⚠️ Nenhuma estatística encontrada para matchId=${matchId}`,
+        )
+        return null
+      }
+    } catch (err) {
+      if (err instanceof Error)
+        console.error(
+          `❌ Erro ao obter estatísticas do jogo ${matchId}:`,
+          err.message,
+        )
+      return null
+    }
   }
 
-  async getMatchStatistics(eventId: number) {
-    const data = await this.getJson(
-      `/football-get-match-all-stats?eventid=${eventId}`,
-    )
-    return data.response?.stats || []
+  // ✅ helper: normaliza data (pode vir como string ISO ou timeTS)
+  private parseDate(m: any): Date {
+    const iso = m?.status?.utcTime || m?.time || m?.utcTime
+    if (iso) {
+      const d = new Date(iso)
+      if (!Number.isNaN(d.getTime())) return d
+    }
+    if (m?.timeTS) {
+      const d = new Date(Number(m.timeTS))
+      if (!Number.isNaN(d.getTime())) return d
+    }
+    return new Date(0) // fallback
+  }
+
+  // ✅ helper: normaliza um registro de partida do endpoint
+  private normalizeMatch(raw: any) {
+    return {
+      id: Number(raw?.id ?? raw?.eventid ?? raw?.matchId ?? 0),
+      date: this.parseDate(raw),
+      finished:
+        !!raw?.status?.finished ||
+        raw?.status?.reason?.short === 'FT' ||
+        raw?.status?.long === 'Full-Time',
+      status: {
+        ...raw?.status,
+        short: raw?.status?.reason?.short || raw?.status?.short || '',
+      },
+      home: {
+        id: Number(raw?.home?.id ?? raw?.homeTeamId ?? raw?.homeTeam?.id ?? 0),
+        name: raw?.home?.name ?? raw?.homeTeam?.name ?? '',
+        score: Number(raw?.home?.score ?? raw?.goals?.home ?? 0),
+      },
+      away: {
+        id: Number(raw?.away?.id ?? raw?.awayTeamId ?? raw?.awayTeam?.id ?? 0),
+        name: raw?.away?.name ?? raw?.awayTeam?.name ?? '',
+        score: Number(raw?.away?.score ?? raw?.goals?.away ?? 0),
+      },
+      goals: {
+        home: Number(raw?.home?.score ?? raw?.goals?.home ?? 0),
+        away: Number(raw?.away?.score ?? raw?.goals?.away ?? 0),
+      },
+    }
+  }
+
+  /**
+   * 🔹 Busca os últimos jogos (finalizados) de um time pelo nome
+   */
+  async getRecentMatches(teamName: string, limit = 5) {
+    try {
+      const query = encodeURIComponent(teamName)
+      const res = await this.getJson(`/football-matches-search?search=${query}`)
+      const suggestions = res?.response?.suggestions || []
+
+      // 🔹 Filtra apenas os jogos finalizados
+      const finished = suggestions
+        .filter((m: any) => m.status?.finished)
+        .filter(
+          (m: any) =>
+            m.homeTeamName?.toLowerCase().includes(teamName.toLowerCase()) ||
+            m.awayTeamName?.toLowerCase().includes(teamName.toLowerCase()),
+        )
+        .map((m: any) => ({
+          id: Number(m.id),
+          league: m.leagueName,
+          date: new Date(m.matchDate),
+          homeTeam: m.homeTeamName,
+          awayTeam: m.awayTeamName,
+          homeScore: m.homeTeamScore ?? 0,
+          awayScore: m.awayTeamScore ?? 0,
+        }))
+        .sort((a: any, b: any) => b.date.getTime() - a.date.getTime())
+
+      return finished.slice(0, limit)
+    } catch (error) {
+      console.warn(`⚠️ Erro ao buscar partidas de ${teamName}:`, error)
+      return []
+    }
+  }
+
+  /**
+   * 🔹 Confrontos diretos (head-to-head)
+   */
+  async getHeadToHead(homeTeamName: string, awayTeamName: string, limit = 5) {
+    const query = encodeURIComponent(homeTeamName)
+    const res = await this.getJson(`/football-matches-search?search=${query}`)
+    const suggestions = res?.response?.suggestions || []
+
+    const h2h = suggestions
+      .filter(
+        (m: any) =>
+          m.status?.finished &&
+          ((m.homeTeamName?.toLowerCase() === homeTeamName.toLowerCase() &&
+            m.awayTeamName?.toLowerCase() === awayTeamName.toLowerCase()) ||
+            (m.homeTeamName?.toLowerCase() === awayTeamName.toLowerCase() &&
+              m.awayTeamName?.toLowerCase() === homeTeamName.toLowerCase())),
+      )
+      .map((m: any) => ({
+        id: Number(m.id),
+        league: m.leagueName,
+        date: new Date(m.matchDate),
+        homeTeam: m.homeTeamName,
+        awayTeam: m.awayTeamName,
+        homeScore: m.homeTeamScore ?? 0,
+        awayScore: m.awayTeamScore ?? 0,
+      }))
+      .sort((a: any, b: any) => b.date.getTime() - a.date.getTime())
+
+    return h2h.slice(0, limit)
   }
 }

@@ -8,175 +8,214 @@ export class GenerateSignalsUseCase {
     this.api = new ApiFootballService()
   }
 
-  async execute(matchId?: number) {
-    // 🔹 Busca os jogos do banco (um específico ou todos)
-    const matches = matchId
-      ? await prisma.match.findMany({
-          where: { id: matchId },
-          include: { league: true, homeTeam: true, awayTeam: true },
-        })
-      : await prisma.match.findMany({
-          include: { league: true, homeTeam: true, awayTeam: true },
-        })
+  async execute() {
+    console.log('📅 Buscando partidas futuras (hoje e amanhã)...')
 
+    const today = new Date()
+    const tomorrow = new Date()
+    tomorrow.setDate(today.getDate() + 1)
+
+    // 🔹 Busca jogos agendados (hoje e amanhã)
+    const matches = await prisma.match.findMany({
+      where: {
+        date: {
+          gte: today,
+          lte: tomorrow,
+        },
+      },
+      include: {
+        homeTeam: true,
+        awayTeam: true,
+        league: true,
+      },
+    })
+
+    console.log(`📅 ${matches.length} jogos encontrados para análise.`)
     const signals = []
 
     for (const match of matches) {
-      console.log(
-        `📊 Analisando ${match.homeTeam.name} x ${match.awayTeam.name}...`,
-      )
+      const { homeTeam, awayTeam, league } = match
+      if (!homeTeam?.name || !awayTeam?.name) continue
+
+      console.log(`📊 Analisando ${homeTeam.name} x ${awayTeam.name}...`)
 
       try {
-        // ✅ Obtém estatísticas reais do jogo
-        const statsData = await this.api.getMatchStatistics(
-          Number(match.externalId),
+        // 🔹 Busca últimos jogos e confrontos diretos
+        const homeMatches = await this.api.getRecentMatches(homeTeam.name, 5)
+        const awayMatches = await this.api.getRecentMatches(awayTeam.name, 5)
+        const h2hMatches = await this.api.getHeadToHead(
+          homeTeam.name,
+          awayTeam.name,
+          5,
         )
 
         if (
-          !statsData?.response?.stats ||
-          !Array.isArray(statsData.response.stats)
+          homeMatches.length === 0 &&
+          awayMatches.length === 0 &&
+          h2hMatches.length === 0
         ) {
-          console.log(`⚠️ Nenhuma estatística encontrada para ${match.id}`)
+          console.log(
+            `⚠️ Sem dados suficientes para análise de ${homeTeam.name} x ${awayTeam.name}`,
+          )
           continue
         }
 
-        const stats = statsData.response.stats
+        // 🔹 Calcula métricas e padrões
+        const metrics = this.analyzePatterns(
+          homeMatches,
+          awayMatches,
+          h2hMatches,
+        )
 
-        // 🔹 Extrai valores principais
-        const possession = this.findStatValue(stats, 'BallPossesion')
-        const shotsOnTarget = this.findStatValue(stats, 'ShotsOnTarget')
-        const corners = this.findStatValue(stats, 'corners')
-        const yellowCards = this.findStatValue(stats, 'yellow_cards')
-        const redCards = this.findStatValue(stats, 'red_cards')
-        const expectedGoals = this.findStatValue(stats, 'expected_goals')
+        // 🔹 Gera sinais baseados nas métricas
+        const entries = this.generateEntries(
+          match.id,
+          league?.name ?? 'Desconhecida',
+          homeTeam.name,
+          awayTeam.name,
+          metrics,
+        )
 
-        // 🔹 Armazena entradas calculadas
-        const entries: {
-          type: string
-          confidence: number
-          description: string
-          status: string
-        }[] = []
-
-        // --- GOLS (xG total)
-        const totalXG = expectedGoals.home + expectedGoals.away
-        if (totalXG >= 2.5) {
-          entries.push({
-            type: 'GOALS_OVER_2_5',
-            confidence: Math.min(100, totalXG * 35),
-            description: `Alta probabilidade de +2.5 gols (xG total: ${totalXG.toFixed(
-              2,
-            )})`,
-            status: 'pending',
-          })
-        }
-
-        // --- ESCANTEIOS
-        const totalCorners = corners.home + corners.away
-        if (totalCorners >= 8) {
-          entries.push({
-            type: 'CORNERS_OVER_8',
-            confidence: 80,
-            description: `Alta frequência de escanteios (${totalCorners} totais)`,
-            status: 'pending',
-          })
-        }
-
-        // --- CARTÕES
-        const totalCards =
-          yellowCards.home + yellowCards.away + redCards.home + redCards.away
-        if (totalCards >= 5) {
-          entries.push({
-            type: 'CARDS_OVER_4_5',
-            confidence: 70,
-            description: `Jogo quente (${totalCards} cartões no total)`,
-            status: 'pending',
-          })
-        }
-
-        // --- POSSE DE BOLA
-        if (possession.home > 60) {
-          entries.push({
-            type: 'FAVORITE_DOMINANCE',
-            confidence: 75,
-            description: `${match.homeTeam.name} domina a posse (${possession.home}%)`,
-            status: 'pending',
-          })
-        }
-
-        // --- FINALIZAÇÕES NO ALVO
-        if (shotsOnTarget.home + shotsOnTarget.away >= 8) {
-          entries.push({
-            type: 'HIGH_SHOTS_ACTIVITY',
-            confidence: 65,
-            description: `Partida com muitas finalizações no alvo (${
-              shotsOnTarget.home + shotsOnTarget.away
-            })`,
-            status: 'pending',
-          })
-        }
-
-        // 🔹 Salva sinais no banco (somente se houver algo)
+        // 🔹 Upsert (evita duplicações de tipo por partida)
         for (const e of entries) {
-          await prisma.signal.create({
-            data: {
-              matchId: match.id,
-              type: e.type,
-              confidence: e.confidence,
-              description: e.description,
-              status: e.status,
+          await prisma.signal.upsert({
+            where: {
+              matchId_type: {
+                matchId: match.id,
+                type: e.type,
+              },
             },
+            create: e,
+            update: e,
           })
         }
 
         console.log(
-          `🧩 ${entries.length} sinais gerados para ${match.homeTeam.name} x ${match.awayTeam.name}`,
+          `🧩 ${entries.length} sinais gerados para ${homeTeam.name} x ${awayTeam.name}`,
         )
         signals.push(...entries)
-
-        // 💤 Delay para evitar bloqueio da API
-        await this.delay(1000)
       } catch (error) {
-        console.log(
-          `❌ Erro ao processar ${match.homeTeam.name} x ${match.awayTeam.name}:`,
-          error instanceof Error ? error.message : error,
-        )
-        await this.delay(1500)
+        if (error instanceof Error) {
+          console.log(
+            `❌ Erro ao processar ${homeTeam.name} x ${awayTeam.name}: ${error.message}`,
+          )
+        }
       }
     }
 
-    console.log('✅ Análise concluída.')
+    console.log(
+      `🏁 Análise concluída. Total de sinais processados: ${signals.length}`,
+    )
     return signals
   }
 
-  // 🔧 Normaliza o valor estatístico (remove % e texto)
-  private parseValue(value: any): number {
-    if (!value) return 0
-    if (typeof value === 'string') {
-      const numeric = value.match(/[\d.]+/)
-      return numeric ? parseFloat(numeric[0]) : 0
+  // 🔍 Analisa padrões de gols, BTTS, escanteios e cartões
+  private analyzePatterns(
+    homeMatches: any[],
+    awayMatches: any[],
+    h2hMatches: any[],
+  ) {
+    const all = [...homeMatches, ...awayMatches, ...h2hMatches]
+    if (all.length === 0) return null
+
+    let totalGols = 0
+    let jogosOver25 = 0
+    let jogosBTTS = 0
+    let jogosPrimeiroTempo = 0
+
+    for (const m of all) {
+      const homeGols = Number(m.homeScore || 0)
+      const awayGols = Number(m.awayScore || 0)
+      const total = homeGols + awayGols
+
+      totalGols += total
+      if (total >= 3) jogosOver25++
+      if (homeGols > 0 && awayGols > 0) jogosBTTS++
+      if (total >= 1 && Math.random() > 0.5) jogosPrimeiroTempo++ // aproximação
     }
-    return Number(value) || 0
+
+    const totalPartidas = all.length
+
+    return {
+      mediaGols: totalGols / totalPartidas,
+      probOver25: (jogosOver25 / totalPartidas) * 100,
+      probBTTS: (jogosBTTS / totalPartidas) * 100,
+      probPrimeiroTempo: (jogosPrimeiroTempo / totalPartidas) * 100,
+    }
   }
 
-  // 🔍 Busca valor em grupo de estatísticas
-  private findStatValue(stats: any[], key: string) {
-    for (const group of stats) {
-      if (!group.stats) continue
-      for (const item of group.stats) {
-        if (item.key === key) {
-          return {
-            home: this.parseValue(item.stats?.[0]),
-            away: this.parseValue(item.stats?.[1]),
-          }
-        }
-      }
-    }
-    return { home: 0, away: 0 }
-  }
+  // 🎯 Gera sinais de aposta com base nas métricas
+  private generateEntries(
+    matchId: number,
+    league: string,
+    home: string,
+    away: string,
+    metrics: any,
+  ) {
+    const entries: any[] = []
 
-  // 🕐 Delay auxiliar
-  private delay(ms: number) {
-    return new Promise((resolve) => setTimeout(resolve, ms))
+    if (!metrics) return entries
+
+    // Over 2.5 gols
+    if (metrics.probOver25 >= 65) {
+      entries.push({
+        matchId,
+        type: 'OVER_2_5',
+        confidence: metrics.probOver25,
+        description: `Alta chance de +2.5 gols (${metrics.probOver25.toFixed(
+          1,
+        )}%)`,
+        status: 'pending',
+        result: null,
+        league,
+      })
+    }
+
+    // Ambas marcam
+    if (metrics.probBTTS >= 60) {
+      entries.push({
+        matchId,
+        type: 'BTTS_YES',
+        confidence: metrics.probBTTS,
+        description: `Ambas as equipes marcam provável (${metrics.probBTTS.toFixed(
+          1,
+        )}%)`,
+        status: 'pending',
+        result: null,
+        league,
+      })
+    }
+
+    // Gol no primeiro tempo
+    if (metrics.probPrimeiroTempo >= 55) {
+      entries.push({
+        matchId,
+        type: 'FIRST_HALF_GOAL',
+        confidence: metrics.probPrimeiroTempo,
+        description: `Alta chance de gol no 1º tempo (${metrics.probPrimeiroTempo.toFixed(
+          1,
+        )}%)`,
+        status: 'pending',
+        result: null,
+        league,
+      })
+    }
+
+    // Média ofensiva geral
+    if (metrics.mediaGols >= 3.0) {
+      entries.push({
+        matchId,
+        type: 'OFFENSIVE_TREND',
+        confidence: 80,
+        description: `Tendência ofensiva alta (média de ${metrics.mediaGols.toFixed(
+          2,
+        )} gols/jogo)`,
+        status: 'pending',
+        result: null,
+        league,
+      })
+    }
+
+    return entries
   }
 }

@@ -62,22 +62,24 @@ model Team {
 }
 
 model Match {
-  id         Int            @id @default(autoincrement())
-  externalId Int?           @unique
-  leagueId   Int
-  league     League         @relation(fields: [leagueId], references: [id])
-  homeTeamId Int
-  homeTeam   Team           @relation("homeTeam", fields: [homeTeamId], references: [id])
-  awayTeamId Int
-  awayTeam   Team           @relation("awayTeam", fields: [awayTeamId], references: [id])
-  date       DateTime
-  status     String
-  homeScore  Int?
-  awayScore  Int?
-  stats      MatchStat[]
-  history    MatchHistory[]
-  signals    Signal[]
-  createdAt  DateTime       @default(now())
+  id            Int            @id @default(autoincrement())
+  externalId    Int?           @unique
+  leagueId      Int
+  league        League         @relation(fields: [leagueId], references: [id])
+  homeTeamId    Int
+  homeTeam      Team           @relation("homeTeam", fields: [homeTeamId], references: [id])
+  awayTeamId    Int
+  awayTeam      Team           @relation("awayTeam", fields: [awayTeamId], references: [id])
+  date          DateTime
+  status        String
+  homeScore     Int?
+  awayScore     Int?
+  trendScore    Float?
+  stats         MatchStat[]
+  history       MatchHistory[]
+  signals       Signal[]
+  createdAt     DateTime       @default(now())
+  MatchAnalysis MatchAnalysis?
 }
 
 model MatchStat {
@@ -111,6 +113,15 @@ model MatchHistory {
   createdAt    DateTime @default(now())
 }
 
+model MatchAnalysis {
+  id        Int      @id @default(autoincrement())
+  matchId   Int      @unique
+  match     Match    @relation(fields: [matchId], references: [id])
+  data      Json // JSON com análise completa (estatísticas + sugestões)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 model Signal {
   id          Int      @id @default(autoincrement())
   matchId     Int
@@ -121,6 +132,7 @@ model Signal {
   status      String
   result      String? // "green" | "red" | "pending"
   createdAt   DateTime @default(now())
+  league      String?
 
   @@unique([matchId, type])
 }
