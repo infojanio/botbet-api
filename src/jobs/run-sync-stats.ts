@@ -17,10 +17,17 @@ async function run() {
       console.log(`⚽ Buscando estatísticas do jogo ${match.externalId}...`)
 
       const statsResponse = await api.getMatchStatistics(match.externalId!)
-      if (!statsResponse?.length) continue
+      const statsArray = statsResponse?.response?.stats
+
+      if (!Array.isArray(statsArray) || statsArray.length === 0) {
+        console.warn(
+          `⚠️ Nenhuma estatística encontrada para ${match.externalId}`,
+        )
+        continue
+      }
 
       const extract = (key: string) => {
-        const section = statsResponse.flatMap((s: any) => s.stats || [])
+        const section = statsArray.flatMap((group: any) => group.stats || [])
         const item = section.find((s: any) => s.key === key)
         return item?.stats || [null, null]
       }

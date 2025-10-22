@@ -32,6 +32,30 @@ export class ApiFootballService {
     return []
   }
 
+  // 🔹 Busca todas as ligas disponíveis
+  async getAllLeagues() {
+    try {
+      const res = await this.getJson('/football-get-all-leagues')
+
+      if (!res?.response?.leagues || !Array.isArray(res.response.leagues)) {
+        console.warn('⚠️ Estrutura inesperada em getAllLeagues:', res)
+        return []
+      }
+
+      const leagues = res.response.leagues.map((l: any) => ({
+        id: Number(l.leagueId || l.id || l.ID),
+        name: l.leagueName || l.name || 'Desconhecida',
+        country: l.countryName || l.country || 'N/A',
+      }))
+
+      console.log(`✅ ${leagues.length} ligas carregadas com sucesso.`)
+      return leagues
+    } catch (err) {
+      console.error('❌ Erro ao buscar todas as ligas:', (err as Error).message)
+      return []
+    }
+  }
+
   async getMatchesByDate(date: string) {
     return this.getJson(`/football-matches?date=${date}`)
   }

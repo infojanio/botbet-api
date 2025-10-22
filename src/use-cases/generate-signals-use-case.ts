@@ -15,13 +15,9 @@ export class GenerateSignalsUseCase {
     const tomorrow = new Date()
     tomorrow.setDate(today.getDate() + 1)
 
-    // 🔹 Busca jogos agendados (hoje e amanhã)
     const matches = await prisma.match.findMany({
       where: {
-        date: {
-          gte: today,
-          lte: tomorrow,
-        },
+        date: { gte: today, lte: tomorrow },
       },
       include: {
         homeTeam: true,
@@ -40,34 +36,45 @@ export class GenerateSignalsUseCase {
       console.log(`📊 Analisando ${homeTeam.name} x ${awayTeam.name}...`)
 
       try {
-        // 🔹 Busca últimos jogos e confrontos diretos
-        const homeMatches = await this.api.getRecentMatches(homeTeam.name, 5)
-        const awayMatches = await this.api.getRecentMatches(awayTeam.name, 5)
-        const h2hMatches = await this.api.getHeadToHead(
+        // 📊 Busca últimos jogos de casa / fora
+        const homeRecent = await this.api.getRecentMatches(homeTeam.name, 5)
+        const awayRecent = await this.api.getRecentMatches(awayTeam.name, 5)
+        const h2h = await this.api.getHeadToHead(
           homeTeam.name,
           awayTeam.name,
           5,
         )
 
+        if (!match.externalId) {
+          console.warn(`⚠️ Partida sem externalId válido: ${match.id}`)
+          continue
+        }
+
+        // 🔸 Estatísticas do jogo (xG, posse, chutes, escanteios, cartões)
+        const stats = await this.api.getMatchStatistics(match.externalId)
+
+        const hasStats =
+          stats &&
+          stats.response &&
+          Array.isArray(stats.response.stats) &&
+          stats.response.stats.length > 0
+
         if (
-          homeMatches.length === 0 &&
-          awayMatches.length === 0 &&
-          h2hMatches.length === 0
+          (!homeRecent.length || homeRecent.length === 0) &&
+          (!awayRecent.length || awayRecent.length === 0) &&
+          (!h2h.length || h2h.length === 0) &&
+          !hasStats
         ) {
           console.log(
-            `⚠️ Sem dados suficientes para análise de ${homeTeam.name} x ${awayTeam.name}`,
+            `⚠️ Sem dados suficientes para ${homeTeam.name} x ${awayTeam.name}`,
           )
           continue
         }
 
-        // 🔹 Calcula métricas e padrões
-        const metrics = this.analyzePatterns(
-          homeMatches,
-          awayMatches,
-          h2hMatches,
-        )
+        // 🔍 Análise separada por time + estatísticas
+        const metrics = this.analyzePatterns(homeRecent, awayRecent, h2h, stats)
 
-        // 🔹 Gera sinais baseados nas métricas
+        // 🎯 Gera sinais com base nas métricas compostas
         const entries = this.generateEntries(
           match.id,
           league?.name ?? 'Desconhecida',
@@ -76,15 +83,9 @@ export class GenerateSignalsUseCase {
           metrics,
         )
 
-        // 🔹 Upsert (evita duplicações de tipo por partida)
         for (const e of entries) {
           await prisma.signal.upsert({
-            where: {
-              matchId_type: {
-                matchId: match.id,
-                type: e.type,
-              },
-            },
+            where: { matchId_type: { matchId: match.id, type: e.type } },
             create: e,
             update: e,
           })
@@ -109,90 +110,136 @@ export class GenerateSignalsUseCase {
     return signals
   }
 
-  // 🔍 Analisa padrões de gols, BTTS, escanteios e cartões
+  // 🔍 Análise detalhada: gols, BTTS, escanteios, cartões, posse e xG
   private analyzePatterns(
     homeMatches: any[],
     awayMatches: any[],
     h2hMatches: any[],
+    stats: any,
   ) {
     const all = [...homeMatches, ...awayMatches, ...h2hMatches]
-    if (all.length === 0) return null
+    if (all.length === 0 && !stats) return null
 
-    let totalGols = 0
+    // ✅ Define tipo explícito com campos opcionais
+    type Metrics = {
+      mediaGols: number
+      media1T: number
+      probOver25: number
+      probBTTS: number
+      mediaEscanteios: number
+      mediaCartoes: number
+      expectedGoals?: number
+      posse?: number
+      chutes?: number
+    }
+
+    let golsTotais = 0
+    let golsPrimeiroTempo = 0
     let jogosOver25 = 0
     let jogosBTTS = 0
-    let jogosPrimeiroTempo = 0
+    let escanteios = 0
+    let amarelos = 0
+    let vermelhos = 0
 
     for (const m of all) {
       const homeGols = Number(m.homeScore || 0)
       const awayGols = Number(m.awayScore || 0)
       const total = homeGols + awayGols
+      const firstHalfGoals =
+        Number(m.firstHalfHomeGoals || 0) + Number(m.firstHalfAwayGoals || 0)
 
-      totalGols += total
+      golsTotais += total
+      golsPrimeiroTempo += firstHalfGoals
       if (total >= 3) jogosOver25++
       if (homeGols > 0 && awayGols > 0) jogosBTTS++
-      if (total >= 1 && Math.random() > 0.5) jogosPrimeiroTempo++ // aproximação
+
+      escanteios += Number(m.corners?.home || 0) + Number(m.corners?.away || 0)
+      amarelos +=
+        Number(m.yellowCards?.home || 0) + Number(m.yellowCards?.away || 0)
+      vermelhos += Number(m.redCards?.home || 0) + Number(m.redCards?.away || 0)
     }
 
-    const totalPartidas = all.length
+    const totalJogos = all.length || 1
 
-    return {
-      mediaGols: totalGols / totalPartidas,
-      probOver25: (jogosOver25 / totalPartidas) * 100,
-      probBTTS: (jogosBTTS / totalPartidas) * 100,
-      probPrimeiroTempo: (jogosPrimeiroTempo / totalPartidas) * 100,
+    const metrics: Metrics = {
+      mediaGols: golsTotais / totalJogos,
+      media1T: golsPrimeiroTempo / totalJogos,
+      probOver25: (jogosOver25 / totalJogos) * 100,
+      probBTTS: (jogosBTTS / totalJogos) * 100,
+      mediaEscanteios: escanteios / totalJogos,
+      mediaCartoes: (amarelos + vermelhos) / totalJogos,
     }
+
+    // ✅ Adiciona estatísticas da API (se disponíveis)
+    if (stats) {
+      const xGHome = stats?.home?.expectedGoals || 0
+      const xGAway = stats?.away?.expectedGoals || 0
+      const posseHome = stats?.home?.possession || 50
+      const posseAway = stats?.away?.possession || 50
+      const chutesHome = stats?.home?.shotsOnTarget || 0
+      const chutesAway = stats?.away?.shotsOnTarget || 0
+
+      metrics.expectedGoals = xGHome + xGAway
+      metrics.posse = (posseHome + posseAway) / 2
+      metrics.chutes = chutesHome + chutesAway
+    }
+
+    return metrics
   }
 
-  // 🎯 Gera sinais de aposta com base nas métricas
+  // 🎯 Geração de sinais avançados
   private generateEntries(
     matchId: number,
     league: string,
     home: string,
     away: string,
-    metrics: any,
+    m: any,
   ) {
     const entries: any[] = []
+    if (!m) return entries
 
-    if (!metrics) return entries
+    // 🔸 Peso composto: histórico (70%) + estatísticas atuais (30%)
+    const mix = (hist: number, stat: number) =>
+      Math.min(100, hist * 0.7 + stat * 0.3)
 
-    // Over 2.5 gols
-    if (metrics.probOver25 >= 65) {
+    // --- Over 2.5 gols
+    if (m.probOver25 >= 60 || (m.expectedGoals ?? 0) > 2.2) {
+      const conf = mix(m.probOver25, (m.expectedGoals ?? 0) * 40)
       entries.push({
         matchId,
         type: 'OVER_2_5',
-        confidence: metrics.probOver25,
-        description: `Alta chance de +2.5 gols (${metrics.probOver25.toFixed(
-          1,
-        )}%)`,
+        confidence: conf,
+        description: `Alta chance de +2.5 gols (xG ${
+          m.expectedGoals?.toFixed(2) ?? '–'
+        })`,
         status: 'pending',
         result: null,
         league,
       })
     }
 
-    // Ambas marcam
-    if (metrics.probBTTS >= 60) {
+    // --- Ambas marcam
+    if (m.probBTTS >= 55 && (m.expectedGoals ?? 0) > 1.5) {
+      const conf = mix(m.probBTTS, (m.expectedGoals ?? 0) * 30)
       entries.push({
         matchId,
         type: 'BTTS_YES',
-        confidence: metrics.probBTTS,
-        description: `Ambas as equipes marcam provável (${metrics.probBTTS.toFixed(
-          1,
-        )}%)`,
+        confidence: conf,
+        description: `Ambas marcam provável (${conf.toFixed(1)}%)`,
         status: 'pending',
         result: null,
         league,
       })
     }
 
-    // Gol no primeiro tempo
-    if (metrics.probPrimeiroTempo >= 55) {
+    // --- Gol no 1º tempo (sem aleatoriedade)
+    if (m.media1T >= 1.0 || (m.expectedGoals ?? 0) > 1.2) {
+      const conf = mix(m.media1T * 50, (m.expectedGoals ?? 0) * 35)
       entries.push({
         matchId,
         type: 'FIRST_HALF_GOAL',
-        confidence: metrics.probPrimeiroTempo,
-        description: `Alta chance de gol no 1º tempo (${metrics.probPrimeiroTempo.toFixed(
+        confidence: conf,
+        description: `Probabilidade alta de gol no 1º tempo (${conf.toFixed(
           1,
         )}%)`,
         status: 'pending',
@@ -201,13 +248,45 @@ export class GenerateSignalsUseCase {
       })
     }
 
-    // Média ofensiva geral
-    if (metrics.mediaGols >= 3.0) {
+    // --- Escanteios
+    if (m.mediaEscanteios >= 8) {
+      const conf = mix(m.mediaEscanteios * 8, (m.chutes ?? 0) * 5)
+      entries.push({
+        matchId,
+        type: 'CORNERS_OVER_8',
+        confidence: conf,
+        description: `Alta média de escanteios (${m.mediaEscanteios.toFixed(
+          1,
+        )}/jogo)`,
+        status: 'pending',
+        result: null,
+        league,
+      })
+    }
+
+    // --- Cartões
+    if (m.mediaCartoes >= 4) {
+      const conf = mix(m.mediaCartoes * 10, m.posse < 45 ? 70 : 50)
+      entries.push({
+        matchId,
+        type: 'CARDS_OVER_4_5',
+        confidence: conf,
+        description: `Jogo quente, média de ${m.mediaCartoes.toFixed(
+          1,
+        )} cartões por partida`,
+        status: 'pending',
+        result: null,
+        league,
+      })
+    }
+
+    // --- Tendência ofensiva
+    if (m.mediaGols >= 3.0) {
       entries.push({
         matchId,
         type: 'OFFENSIVE_TREND',
-        confidence: 80,
-        description: `Tendência ofensiva alta (média de ${metrics.mediaGols.toFixed(
+        confidence: 85,
+        description: `Alta tendência ofensiva (${m.mediaGols.toFixed(
           2,
         )} gols/jogo)`,
         status: 'pending',

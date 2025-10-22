@@ -29,8 +29,8 @@ export class AnalyzeMatchUseCase {
 
     // 🔹 Buscar confrontos diretos (head-to-head)
     const h2h = await this.api.getHeadToHead(
-      match.homeTeam.externalId!,
-      match.awayTeam.externalId!,
+      String(match.homeTeam.externalId!),
+      String(match.awayTeam.externalId!),
       match.leagueId,
     )
 

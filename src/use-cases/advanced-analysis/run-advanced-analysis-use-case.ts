@@ -39,8 +39,9 @@ export class RunAdvancedAnalysisUseCase {
 
       try {
         // Coleta de estatísticas reais
+        if (!match.externalId) continue
         const statsResponse = await this.api.getMatchStatistics(
-          match.externalId!,
+          String(match.externalId),
         )
         const patterns = calculatePatterns(statsResponse)
 

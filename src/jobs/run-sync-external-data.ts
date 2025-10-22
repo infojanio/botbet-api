@@ -11,8 +11,9 @@ async function run() {
   const teamRepo = new PrismaTeamRepository()
   const matchRepo = new PrismaMatchRepository()
 
-  console.log('🌍 Sincronizando ligas populares...')
-  const leaguesResponse = await api.getPopularLeagues()
+  console.log('🌍 Sincronizando todas as ligas...')
+  //const leaguesResponse = await api.getPopularLeagues()
+  const leaguesResponse = await api.getAllLeagues()
 
   const leagues =
     leaguesResponse?.response?.popular ||
