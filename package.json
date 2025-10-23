@@ -10,6 +10,8 @@
     "job:signals": "ts-node src/jobs/run-generate-signals.ts",
     "sync:data": "ts-node src/jobs/run-sync-external-data.ts",
     "generate:signals": "ts-node src/jobs/run-generate-signals.ts",
+    "update:signals": "ts-node src/jobs/update-signal-results.ts",
+    "update:history": "ts-node src/jobs/update-signal-history.ts",
     "sync:stats": "ts-node src/jobs/run-sync-stats.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev --name init"

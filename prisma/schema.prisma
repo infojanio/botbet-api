@@ -83,19 +83,20 @@ model Match {
 }
 
 model MatchStat {
-  id            Int      @id @default(autoincrement())
-  matchId       Int
-  match         Match    @relation(fields: [matchId], references: [id])
-  teamId        Int
-  team          Team     @relation(fields: [teamId], references: [id])
-  possession    Float?
-  expectedGoals Float?
-  shotsOnTarget Int?
-  corners       Int?
-  yellowCards   Int?
-  redCards      Int?
-  fouls         Int?
-  createdAt     DateTime @default(now())
+  id             Int      @id @default(autoincrement())
+  matchId        Int
+  match          Match    @relation(fields: [matchId], references: [id])
+  teamId         Int
+  team           Team     @relation(fields: [teamId], references: [id])
+  possession     Float?
+  expectedGoals  Float?
+  shotsOnTarget  Int?
+  corners        Int?
+  yellowCards    Int?
+  redCards       Int?
+  fouls          Int?
+  firstHalfGoals Int?
+  createdAt      DateTime @default(now())
 
   @@unique([matchId, teamId])
 }
@@ -135,4 +136,15 @@ model Signal {
   league      String?
 
   @@unique([matchId, type])
+}
+
+model SignalHistory {
+  id           Int      @id @default(autoincrement())
+  date         DateTime @unique
+  totalSignals Int
+  greens       Int
+  reds         Int
+  voids        Int
+  accuracy     Float
+  createdAt    DateTime @default(now())
 }

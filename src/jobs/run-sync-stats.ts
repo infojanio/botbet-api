@@ -4,13 +4,25 @@ import { prisma } from '../lib/prisma'
 
 async function run() {
   const api = new ApiFootballService()
+  console.log(
+    '📊 Iniciando sincronização de estatísticas de partidas finalizadas (últimos 3 dias)...',
+  )
 
-  console.log('📊 Iniciando sincronização de estatísticas de partidas...')
+  // Considera apenas partidas finalizadas nos últimos 3 dias
+  const threeDaysAgo = new Date()
+  threeDaysAgo.setDate(threeDaysAgo.getDate() - 3)
 
   const matches = await prisma.match.findMany({
-    where: { status: 'finished' },
+    where: {
+      status: { in: ['finished', 'FT', 'Full-Time', 'ended'] },
+      date: { gte: threeDaysAgo },
+    },
     include: { homeTeam: true, awayTeam: true },
   })
+
+  console.log(
+    `🔍 ${matches.length} partidas encontradas finalizadas nos últimos 3 dias.`,
+  )
 
   for (const match of matches) {
     try {
@@ -26,44 +38,73 @@ async function run() {
         continue
       }
 
-      const extract = (key: string) => {
-        const section = statsArray.flatMap((group: any) => group.stats || [])
-        const item = section.find((s: any) => s.key === key)
-        return item?.stats || [null, null]
+      /**
+       * 🔍 Função genérica para buscar estatísticas por key
+       * Varre todas as seções (Top stats, Attack, Discipline, etc.)
+       */
+      const extract = (key: string): [number | null, number | null] => {
+        for (const section of statsArray) {
+          const statItem = section.stats?.find(
+            (s: any) => s.key?.toLowerCase() === key.toLowerCase(),
+          )
+          if (statItem?.stats && Array.isArray(statItem.stats)) {
+            const normalize = (v: any) => {
+              const n = parseFloat(String(v).replace('%', '').trim())
+              return isNaN(n) ? null : n
+            }
+            const [home, away] = statItem.stats
+            return [normalize(home), normalize(away)]
+          }
+        }
+        return [null, null]
       }
 
+      // 🧩 Extrai dados principais
       const [homePoss, awayPoss] = extract('BallPossesion')
-      const [homeXG, awayXG] = extract('expected_goals')
       const [homeShots, awayShots] = extract('ShotsOnTarget')
       const [homeCorners, awayCorners] = extract('corners')
       const [homeFouls, awayFouls] = extract('fouls')
+
+      // 🧠 Novos campos adicionais
+      const [homeXG, awayXG] =
+        extract('expected_goals')[0] !== null
+          ? extract('expected_goals')
+          : extract('xG') // fallback
+
       const [homeYellows, awayYellows] = extract('yellow_cards')
       const [homeReds, awayReds] = extract('red_cards')
 
-      // Salvar estatísticas no banco
+      const [home1TGoals, away1TGoals] =
+        extract('first_half_goals')[0] !== null
+          ? extract('first_half_goals')
+          : extract('1st_half_goals')
+
+      // ✅ Atualiza ou cria estatísticas no banco
       await prisma.matchStat.upsert({
         where: {
           matchId_teamId: { matchId: match.id, teamId: match.homeTeamId },
         },
         update: {
-          possession: Number(homePoss) || null,
-          expectedGoals: Number(homeXG) || null,
-          shotsOnTarget: Number(homeShots) || null,
-          corners: Number(homeCorners) || null,
-          yellowCards: Number(homeYellows) || null,
-          redCards: Number(homeReds) || null,
-          fouls: Number(homeFouls) || null,
+          possession: homePoss,
+          expectedGoals: homeXG,
+          shotsOnTarget: homeShots,
+          corners: homeCorners,
+          yellowCards: homeYellows,
+          redCards: homeReds,
+          fouls: homeFouls,
+          firstHalfGoals: home1TGoals,
         },
         create: {
           matchId: match.id,
           teamId: match.homeTeamId,
-          possession: Number(homePoss) || null,
-          expectedGoals: Number(homeXG) || null,
-          shotsOnTarget: Number(homeShots) || null,
-          corners: Number(homeCorners) || null,
-          yellowCards: Number(homeYellows) || null,
-          redCards: Number(homeReds) || null,
-          fouls: Number(homeFouls) || null,
+          possession: homePoss,
+          expectedGoals: homeXG,
+          shotsOnTarget: homeShots,
+          corners: homeCorners,
+          yellowCards: homeYellows,
+          redCards: homeReds,
+          fouls: homeFouls,
+          firstHalfGoals: home1TGoals,
         },
       })
 
@@ -72,29 +113,31 @@ async function run() {
           matchId_teamId: { matchId: match.id, teamId: match.awayTeamId },
         },
         update: {
-          possession: Number(awayPoss) || null,
-          expectedGoals: Number(awayXG) || null,
-          shotsOnTarget: Number(awayShots) || null,
-          corners: Number(awayCorners) || null,
-          yellowCards: Number(awayYellows) || null,
-          redCards: Number(awayReds) || null,
-          fouls: Number(awayFouls) || null,
+          possession: awayPoss,
+          expectedGoals: awayXG,
+          shotsOnTarget: awayShots,
+          corners: awayCorners,
+          yellowCards: awayYellows,
+          redCards: awayReds,
+          fouls: awayFouls,
+          firstHalfGoals: away1TGoals,
         },
         create: {
           matchId: match.id,
           teamId: match.awayTeamId,
-          possession: Number(awayPoss) || null,
-          expectedGoals: Number(awayXG) || null,
-          shotsOnTarget: Number(awayShots) || null,
-          corners: Number(awayCorners) || null,
-          yellowCards: Number(awayYellows) || null,
-          redCards: Number(awayReds) || null,
-          fouls: Number(awayFouls) || null,
+          possession: awayPoss,
+          expectedGoals: awayXG,
+          shotsOnTarget: awayShots,
+          corners: awayCorners,
+          yellowCards: awayYellows,
+          redCards: awayReds,
+          fouls: awayFouls,
+          firstHalfGoals: away1TGoals,
         },
       })
 
       console.log(
-        `✅ Estatísticas sincronizadas para ${match.homeTeam.name} x ${match.awayTeam.name}`,
+        `✅ Estatísticas salvas para ${match.homeTeam.name} x ${match.awayTeam.name}`,
       )
     } catch (error) {
       if (error instanceof Error) {
