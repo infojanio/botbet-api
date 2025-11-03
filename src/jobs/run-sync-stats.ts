@@ -10,7 +10,7 @@ async function run() {
 
   // Considera apenas partidas finalizadas nos últimos 3 dias
   const threeDaysAgo = new Date()
-  threeDaysAgo.setDate(threeDaysAgo.getDate() - 3)
+  threeDaysAgo.setDate(threeDaysAgo.getDate() - 5)
 
   const matches = await prisma.match.findMany({
     where: {

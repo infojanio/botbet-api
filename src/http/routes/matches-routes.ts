@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify'
 
-import { getMatchesController } from '../controllers/matches-controller'
+import { getMatchesController } from '../controllers/get-matches-controller'
 import { getMatchStatsController } from '../controllers/matches/get-match-stats-controller'
 import { getMatchAnalysisController } from '../controllers/matches/get-match-analysis-controller'
 import { getUpcomingMatchesAnalysisController } from '../controllers/matches/get-upcoming-analysis-controller'

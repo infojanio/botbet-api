@@ -1,15 +1,29 @@
 import 'dotenv/config'
 import { prisma } from '../lib/prisma'
+import dayjs from 'dayjs'
+import utc from 'dayjs/plugin/utc'
+dayjs.extend(utc)
 
 async function run() {
   console.log('📊 Iniciando atualização dos resultados dos sinais...')
 
-  // 🔹 Busca todos os sinais pendentes e com partida finalizada
+  // 🔹 Atualiza os últimos 3 dias (hoje, ontem e anteontem)
+  const today = dayjs.utc().startOf('day')
+  const startDate = today.subtract(3, 'day').toDate()
+  const endDate = today.endOf('day').toDate()
+
+  console.log(
+    `📅 Intervalo: ${startDate.toISOString()} → ${endDate.toISOString()}`,
+  )
+
+  // 🔹 Busca sinais criados nos últimos 3 dias
   const signals = await prisma.signal.findMany({
     where: {
-      status: 'pending',
+      createdAt: { gte: startDate, lte: endDate },
       match: {
-        status: { in: ['finished', 'FT', 'Full-Time', 'ended'] },
+        status: {
+          in: ['finished', 'FT', 'Full-Time', 'Match Finished', 'ended'],
+        },
       },
     },
     include: {
@@ -17,13 +31,19 @@ async function run() {
         include: {
           homeTeam: true,
           awayTeam: true,
-          stats: true, // tabela MatchStat
+          stats: true,
         },
       },
     },
   })
 
   console.log(`🔍 ${signals.length} sinais encontrados para conferência.`)
+
+  if (signals.length === 0) {
+    console.log('⚠️ Nenhum sinal encontrado para o período informado.')
+    await prisma.$disconnect()
+    return
+  }
 
   for (const signal of signals) {
     const { match, type } = signal
@@ -33,7 +53,6 @@ async function run() {
     const awayGoals = Number(match.awayScore ?? 0)
     const totalGols = homeGoals + awayGoals
 
-    // 🔹 Estatísticas adicionais do MatchStat
     const homeStats = match.stats.find((s) => s.teamId === match.homeTeamId)
     const awayStats = match.stats.find((s) => s.teamId === match.awayTeamId)
 
@@ -47,7 +66,6 @@ async function run() {
     const gols1T =
       (homeStats?.firstHalfGoals ?? 0) + (awayStats?.firstHalfGoals ?? 0)
 
-    // 🔸 Determina o resultado
     let result: 'green' | 'red' | 'void' = 'void'
 
     switch (type) {
@@ -68,6 +86,12 @@ async function run() {
         break
       case 'OFFENSIVE_TREND':
         result = totalGols >= 3 ? 'green' : 'red'
+        break
+      case 'HOME_OR_DRAW':
+        result = homeGoals >= awayGoals ? 'green' : 'red'
+        break
+      case 'AWAY_OR_DRAW':
+        result = awayGoals >= homeGoals ? 'green' : 'red'
         break
       default:
         result = 'void'

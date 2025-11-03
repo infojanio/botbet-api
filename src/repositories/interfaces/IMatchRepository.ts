@@ -23,4 +23,15 @@ export interface IMatchRepository {
       awayTeam: Team
     })[]
   >
+
+  findUpcoming(params?: {
+    limit?: number
+  }): Promise<
+    (Match & {
+      league: League
+      homeTeam: Team
+      awayTeam: Team
+      signals?: Signal[]
+    })[]
+  >
 }

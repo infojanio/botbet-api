@@ -1,4 +1,8 @@
+import dayjs from 'dayjs'
+import utc from 'dayjs/plugin/utc'
 import { prisma } from '../../lib/prisma'
+
+dayjs.extend(utc)
 
 export class PrismaMatchRepository {
   async upsert(data: {
@@ -41,29 +45,94 @@ export class PrismaMatchRepository {
       include: {
         homeTeam: true,
         awayTeam: true,
+        stats: true,
         league: true,
         signals: true,
       },
     })
   }
 
-  async findUpcoming(params: { from?: Date; to?: Date; limit?: number }) {
+  /**
+   * Retorna partidas de uma data específica (00:00 até 23:59)
+   */
+  async findByDate(date: Date) {
+    const startOfDay = dayjs(date).utc().startOf('day').toDate()
+    const endOfDay = dayjs(date).utc().endOf('day').toDate()
+
     return prisma.match.findMany({
       where: {
         date: {
-          gte: params.from ?? new Date(),
-          lte: params.to ?? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          gte: startOfDay,
+          lte: endOfDay,
         },
         status: 'scheduled',
       },
       include: {
+        league: true,
         homeTeam: true,
         awayTeam: true,
-        league: true,
         signals: true,
       },
       orderBy: { date: 'asc' },
-      take: params.limit ?? 50,
     })
+  }
+
+  /**
+   * Retorna partidas de HOJE e AMANHÃ (status 'scheduled')
+   */
+  async findUpcoming(params?: { limit?: number }) {
+    const today = dayjs()
+    const startOfDay = today.startOf('day').toDate()
+    const endOfTomorrow = today.add(1, 'day').endOf('day').toDate()
+
+    console.log('🕒 [findUpcoming] Intervalo de busca:')
+    console.log('   Início:', startOfDay)
+    console.log('   Fim   :', endOfTomorrow)
+
+    const matches = await prisma.match.findMany({
+      where: {
+        date: {
+          gte: startOfDay,
+          lte: endOfTomorrow,
+        },
+        status: {
+          in: [
+            'scheduled',
+            'NS',
+            'not_started',
+            'upcoming',
+            'fixture',
+            'Not Started',
+          ],
+        },
+      },
+      include: {
+        league: true,
+        homeTeam: true,
+        awayTeam: true,
+        signals: true,
+      },
+      orderBy: { date: 'asc' },
+      take: params?.limit ?? 50,
+    })
+
+    console.log(`📊 [findUpcoming] ${matches.length} partida(s) encontrada(s).`)
+
+    if (matches.length > 0) {
+      console.table(
+        matches.map((m) => ({
+          id: m.id,
+          status: m.status,
+          date: m.date,
+          league: m.league?.name,
+        })),
+      )
+    } else {
+      console.log(
+        '⚠️ Nenhuma partida encontrada dentro do intervalo e status especificados.',
+      )
+    }
+
+    return matches
   }
 }
